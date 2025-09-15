@@ -1,0 +1,12 @@
+{
+	"sqltools.useNodeRuntime": true,
+	"sqltools.connections": [
+		{
+			"previewLimit": 50,
+			"driver": "SQLite",
+			"name": "All Faiths On Fire",
+			"group": "AFOF",
+			"database": "${workspaceFolder:AllFaithsOnFire.org}/allfaithsonfire.db"
+		}
+	]
+}
