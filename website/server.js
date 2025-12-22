@@ -17,11 +17,22 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const PgSession = connectPgSimple(session);
 
+// Health check endpoint - BEFORE any middleware to ensure quick response
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
+
+// Debug logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
 
 const sessionTtl = 7 * 24 * 60 * 60 * 1000;
 app.use(session({
@@ -30,22 +41,18 @@ app.use(session({
     tableName: 'sessions',
     createTableIfMissing: false
   }),
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: { 
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     maxAge: sessionTtl
   }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
-
-app.get('/healthz', (req, res) => {
-  res.status(200).send('OK');
-});
 
 let oidcConfig = null;
 const registeredStrategies = new Set();
@@ -331,5 +338,19 @@ app.post('/moderate/:id/reject', async (req, res) => {
   }
 });
 
+// Catch-all 404 handler
+app.use((req, res) => {
+  console.log(`[404] No route matched: ${req.method} ${req.path}`);
+  res.status(404).send('Page not found');
+});
+
 const PORT = process.env.PORT || 5000;
+
+// Log startup info
+console.log('Starting server...');
+console.log('  Views:', path.join(__dirname, 'views'));
+console.log('  Public:', path.join(__dirname, 'public'));
+console.log('  PORT:', PORT);
+console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
+
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running at http://0.0.0.0:${PORT}`));
