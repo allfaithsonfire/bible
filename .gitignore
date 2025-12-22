@@ -1,6 +1,13 @@
 allfaiths_dev_server
-node_modules
+node_modules/
 
 *.zip
 package-lock.json
 *.db-journal
+*.log
+npm-debug.log*
+.npm
+.env
+.env.local
+.env.*.local
+.DS_Store

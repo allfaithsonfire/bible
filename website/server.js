@@ -20,7 +20,8 @@ app.get('/', (req, res) => {
     book.chapters = db.prepare('SELECT id, title, filename FROM chapters WHERE book_id = ?').all(book.id);
   });
 
-  const quote = db.prepare('SELECT quote FROM quotes ORDER BY RANDOM() LIMIT 1').get() || { quote: 'Let the word be light.' };
+  const quoteRow = db.prepare('SELECT text FROM quotes ORDER BY RANDOM() LIMIT 1').get();
+  const quote = { quote: quoteRow?.text || 'Let the word be light.' };
 
   const filename = req.query.chapter;
   let chapter = null;
@@ -36,8 +37,8 @@ app.get('/', (req, res) => {
   res.render('index', { books, chapter, verses, quote });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running at http://0.0.0.0:${PORT}`));
 
 app.get('/chapter/:filename', (req, res) => {
   const chapter = db.prepare(`
@@ -48,9 +49,12 @@ app.get('/chapter/:filename', (req, res) => {
       r.text as redemption
     FROM chapters c
     JOIN books b ON c.book_id = b.id
-    LEFT JOIN morals m ON c.moral_id = m.id
-    LEFT JOIN consequences co ON c.consequence_id = co.id
-    LEFT JOIN redemptions r ON c.redemption_id = r.id
+    LEFT JOIN chapter_morals cm ON cm.chapter_id = c.id
+    LEFT JOIN morals m ON m.id = cm.moral_id
+    LEFT JOIN chapter_consequences cc ON cc.chapter_id = c.id
+    LEFT JOIN consequences co ON co.id = cc.consequence_id
+    LEFT JOIN chapter_redemptions cr ON cr.chapter_id = c.id
+    LEFT JOIN redemptions r ON r.id = cr.redemption_id
     WHERE c.filename = ?
   `).get(req.params.filename);
 
