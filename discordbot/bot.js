@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import pg from 'pg';
 import OpenAI from 'openai';
 
@@ -8,7 +8,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, 
     GatewayIntentBits.GuildMessages, 
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ] 
 });
 
@@ -163,9 +164,37 @@ async function postQuote(channel) {
   }
 }
 
-client.once('clientReady', async () => {
+const commands = [
+  new SlashCommandBuilder()
+    .setName('submit')
+    .setDescription('Submit a verse, chapter, or wisdom to the living scripture'),
+  new SlashCommandBuilder()
+    .setName('word')
+    .setDescription('Receive today\'s word from the scripture'),
+  new SlashCommandBuilder()
+    .setName('quote')
+    .setDescription('Receive a wisdom quote')
+].map(cmd => cmd.toJSON());
+
+async function registerCommands() {
+  const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+  try {
+    console.log('Registering slash commands...');
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      { body: commands }
+    );
+    console.log('Slash commands registered');
+  } catch (error) {
+    console.error('Error registering commands:', error);
+  }
+}
+
+client.once('ready', async () => {
   console.log(`AllFaithsBot ready as ${client.user.tag}`);
   console.log(`AI-powered conversations enabled`);
+  
+  await registerCommands();
 
   const now = new Date();
   const [hour, minute] = POST_TIME_UTC.split(':').map(Number);
@@ -244,6 +273,131 @@ client.on('messageCreate', async message => {
     } catch (error) {
       console.error('AI response error:', error);
       message.reply("My thoughts scatter like leaves in the wind. Give me a moment and try again.");
+    }
+  }
+});
+
+client.on('guildMemberAdd', async member => {
+  try {
+    await member.send(`Welcome to **All Faiths On Fire**, ${member.user.username}! 🔥
+
+We're a community writing the Book as it should have been written — together.
+
+**Get started:**
+• Say hello in the server and introduce yourself
+• Use \`/submit\` to contribute your own verses or wisdom
+• Use \`/word\` for daily scripture, \`/quote\` for wisdom
+• Mention me anytime you want to talk about faith, life, or the scripture
+
+The fire recognizes its own. We're glad you're here.
+
+**Explore the scripture:** https://allfaithsonfire.replit.app`);
+  } catch (error) {
+    console.log('Could not DM new member:', member.user.username);
+  }
+});
+
+client.on('interactionCreate', async interaction => {
+  if (interaction.isChatInputCommand()) {
+    const { commandName } = interaction;
+    
+    if (commandName === 'submit') {
+      const modal = new ModalBuilder()
+        .setCustomId('submitModal')
+        .setTitle('Submit to the Living Scripture');
+      
+      const typeInput = new TextInputBuilder()
+        .setCustomId('submissionType')
+        .setLabel('What are you submitting?')
+        .setPlaceholder('verse, chapter, book, or quote')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      
+      const titleInput = new TextInputBuilder()
+        .setCustomId('bookTitle')
+        .setLabel('Book/Chapter Title (if applicable)')
+        .setPlaceholder('e.g., Book of Dawn, The First Light...')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+      
+      const contentInput = new TextInputBuilder()
+        .setCustomId('content')
+        .setLabel('Your Words')
+        .setPlaceholder('Write your verse, chapter, or wisdom here...')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+      
+      const notesInput = new TextInputBuilder()
+        .setCustomId('notes')
+        .setLabel('Notes (optional)')
+        .setPlaceholder('Any context or inspiration...')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false);
+      
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(typeInput),
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(contentInput),
+        new ActionRowBuilder().addComponents(notesInput)
+      );
+      
+      await interaction.showModal(modal);
+    }
+    
+    if (commandName === 'word') {
+      await interaction.deferReply();
+      const result = await pool.query(`
+        SELECT v.text, v.verse_number, c.title as chapter, b.title as book 
+        FROM verses v 
+        JOIN chapters c ON v.chapter_id = c.id 
+        JOIN books b ON c.book_id = b.id 
+        ORDER BY RANDOM() LIMIT 1
+      `);
+      if (result.rows.length > 0) {
+        const verse = result.rows[0];
+        await interaction.editReply(`📜 **Today's Word:**\n\n*${verse.text}*\n\n— ${verse.chapter} ${verse.verse_number}, ${verse.book}`);
+      } else {
+        await interaction.editReply('The scripture rests quietly. Check back soon.');
+      }
+    }
+    
+    if (commandName === 'quote') {
+      await interaction.deferReply();
+      const result = await pool.query('SELECT text, author FROM quotes ORDER BY RANDOM() LIMIT 1');
+      if (result.rows.length > 0) {
+        const quote = result.rows[0];
+        const attribution = quote.author ? `\n— ${quote.author}` : '';
+        await interaction.editReply(`💬 *${quote.text}*${attribution}`);
+      } else {
+        await interaction.editReply('Wisdom gathers in silence. Check back soon.');
+      }
+    }
+  }
+  
+  if (interaction.isModalSubmit() && interaction.customId === 'submitModal') {
+    const submissionType = interaction.fields.getTextInputValue('submissionType').toLowerCase();
+    const bookTitle = interaction.fields.getTextInputValue('bookTitle') || null;
+    const content = interaction.fields.getTextInputValue('content');
+    const notes = interaction.fields.getTextInputValue('notes') || null;
+    const discordId = interaction.user.id;
+    const discordName = interaction.user.username;
+    
+    try {
+      await pool.query(`
+        INSERT INTO submissions (user_id, submission_type, book_title, content, notes, status, discord_user_id, discord_username)
+        VALUES (NULL, $1, $2, $3, $4, 'pending', $5, $6)
+      `, [submissionType, bookTitle, content, notes, discordId, discordName]);
+      
+      await interaction.reply({
+        content: `🔥 **Your words have been received.**\n\nThank you, ${interaction.user.username}. Your submission will be reviewed by the community with care. The fire recognizes its own.`,
+        ephemeral: true
+      });
+    } catch (error) {
+      console.error('Submission error:', error);
+      await interaction.reply({
+        content: 'Something went awry. Please try again, seeker.',
+        ephemeral: true
+      });
     }
   }
 });

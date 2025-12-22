@@ -192,7 +192,7 @@
               <strong><%= sub.book_title || 'No Book' %></strong>
               <% if (sub.chapter_title) { %> / <%= sub.chapter_title %><% } %>
               <div class="submission-meta">
-                Submitted by <%= sub.first_name || sub.email || 'Anonymous' %> 
+                Submitted by <%= sub.first_name || sub.email || (sub.discord_username ? sub.discord_username + ' (Discord)' : 'Anonymous') %> 
                 on <%= new Date(sub.created_at).toLocaleDateString() %>
               </div>
             </div>
