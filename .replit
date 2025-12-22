@@ -36,8 +36,8 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["node", "website/server.js"]
+deploymentTarget = "vm"
+run = ["bash", "-c", "node website/server.js & node discordbot/bot.js"]
 
 [userenv]
 
