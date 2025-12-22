@@ -43,6 +43,10 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
 let oidcConfig = null;
 const registeredStrategies = new Set();
 
