@@ -1,7 +1,7 @@
 # All Faiths On Fire - A Ministry of Good Works
 
 ## Overview
-This is a web application that displays religious texts organized into books, chapters, and verses. It uses a SQLite database (`allfaithsonfire.db`) to store the content.
+This is a web application that displays religious texts organized into books, chapters, and verses. It uses PostgreSQL for data storage.
 
 ## Project Structure
 - `website/` - Main Express.js web application
@@ -16,8 +16,7 @@ This is a web application that displays religious texts organized into books, ch
 ## Tech Stack
 - Node.js 20
 - Express.js with EJS templating
-- better-sqlite3 for database access
-- SQLite database
+- PostgreSQL database (via pg client)
 
 ## Running Locally
 The website runs on port 5000. Start with:
@@ -26,8 +25,11 @@ cd website && npm start
 ```
 
 ## Database
-The SQLite database contains:
+The PostgreSQL database (accessed via DATABASE_URL) contains:
 - Books and chapters with hierarchical organization
 - Verses with verse numbers
 - Quotes for display
 - Tags, morals, consequences, and redemptions for chapters
+
+## Recent Changes
+- December 2025: Migrated from SQLite to PostgreSQL

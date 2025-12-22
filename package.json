@@ -1,6 +1,7 @@
 {
   "name": "allfaithsonfire",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "prod-all": "pm2 start ecosystem.config.js && pm2 save",
@@ -10,7 +11,11 @@
     "dev-all": "concurrently -n discordbot,website -c cyan,magenta \"npm run dev-discord\" \"npm run dev-website\""
   },
   "devDependencies": {
-    "pm2": "^5.3.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "pm2": "^5.3.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.5.0",
+    "pg": "^8.16.3"
   }
 }
