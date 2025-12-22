@@ -28,6 +28,17 @@ The website uses Replit Auth (OIDC) for user authentication:
 - User profiles stored in users table
 - Uses SESSION_SECRET environment variable (auto-provided by Replit)
 
+## Community Submissions
+Members can submit their own scripture contributions:
+- `/submit` - Submission form for verses, chapters, books, quotes, or edits
+- `/moderate` - Moderation queue for reviewing pending submissions
+- Submissions are stored with status (pending/approved/rejected)
+
+### Moderator Access
+By default, all logged-in users can access the moderation queue. To restrict access:
+- Set `MODERATOR_IDS` environment variable with comma-separated user IDs
+- Example: `MODERATOR_IDS=user123,user456`
+
 ## Running the Website
 The website runs on port 5000. Start with:
 ```
@@ -64,6 +75,7 @@ The PostgreSQL database (accessed via DATABASE_URL) contains:
 - `morals`, `consequences`, `redemptions` - Chapter metadata
 - `users` - Registered user accounts
 - `sessions` - User session storage
+- `submissions` - Community scripture contributions (pending review)
 
 ## Deployment
 Production deployment runs both website and Discord bot:
@@ -72,6 +84,7 @@ node website/server.js & node discordbot/bot.js
 ```
 
 ## Recent Changes
+- December 2025: Added community submission system with moderation queue
 - December 2025: Added Replit Auth (OIDC) for user authentication
 - December 2025: Enhanced Discord bot with AI-powered conversations using OpenAI
 - December 2025: Added memory management (LRU cleanup) and scripture context caching

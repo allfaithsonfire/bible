@@ -21,6 +21,7 @@ app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true }));
 
 const sessionTtl = 7 * 24 * 60 * 60 * 1000;
 app.use(session({
@@ -224,6 +225,104 @@ app.get('/chapter/:filename', async (req, res) => {
     res.render('chapter_snippet', { chapter, verses: versesResult.rows });
   } catch (err) {
     console.error('Error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/submit', (req, res) => {
+  res.render('submit', { success: false });
+});
+
+app.post('/submit', async (req, res) => {
+  if (!req.user?.claims?.sub) {
+    return res.redirect('/api/login');
+  }
+
+  const { submission_type, book_title, chapter_title, content, notes } = req.body;
+  
+  try {
+    await pool.query(`
+      INSERT INTO submissions (user_id, submission_type, book_title, chapter_title, content, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [req.user.claims.sub, submission_type, book_title || null, chapter_title || null, content, notes || null]);
+
+    res.render('submit', { success: true });
+  } catch (err) {
+    console.error('Submission error:', err);
+    res.status(500).send('Error saving submission');
+  }
+});
+
+const MODERATORS = (process.env.MODERATOR_IDS || '').split(',').filter(Boolean);
+
+function isModerator(userId) {
+  return MODERATORS.length === 0 || MODERATORS.includes(userId);
+}
+
+app.get('/moderate', async (req, res) => {
+  if (!req.user?.claims?.sub) {
+    return res.redirect('/api/login');
+  }
+  
+  if (!isModerator(req.user.claims.sub)) {
+    return res.status(403).send('Access denied');
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT s.*, u.first_name, u.email 
+      FROM submissions s 
+      LEFT JOIN users u ON s.user_id = u.id 
+      WHERE s.status = 'pending' 
+      ORDER BY s.created_at ASC
+    `);
+    res.render('moderate', { submissions: result.rows });
+  } catch (err) {
+    console.error('Moderation error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.post('/moderate/:id/approve', async (req, res) => {
+  if (!req.user?.claims?.sub) {
+    return res.redirect('/api/login');
+  }
+  
+  if (!isModerator(req.user.claims.sub)) {
+    return res.status(403).send('Access denied');
+  }
+
+  try {
+    await pool.query(`
+      UPDATE submissions 
+      SET status = 'approved', reviewed_at = NOW(), reviewed_by = $1 
+      WHERE id = $2
+    `, [req.user.claims.sub, req.params.id]);
+    res.redirect('/moderate');
+  } catch (err) {
+    console.error('Approval error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.post('/moderate/:id/reject', async (req, res) => {
+  if (!req.user?.claims?.sub) {
+    return res.redirect('/api/login');
+  }
+  
+  if (!isModerator(req.user.claims.sub)) {
+    return res.status(403).send('Access denied');
+  }
+
+  try {
+    await pool.query(`
+      UPDATE submissions 
+      SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1 
+      WHERE id = $2
+    `, [req.user.claims.sub, req.params.id]);
+    res.redirect('/moderate');
+  } catch (err) {
+    console.error('Rejection error:', err);
     res.status(500).send('Server error');
   }
 });

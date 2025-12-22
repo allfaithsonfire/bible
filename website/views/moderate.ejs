@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Moderation Queue - All Faiths On Fire</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      min-height: 100%;
+    }
+    header, footer {
+      background: #222;
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+    }
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header-main { text-align: center; flex: 1; }
+    .header-auth { display: flex; align-items: center; gap: 0.75rem; }
+    .auth-btn {
+      background: #fff;
+      color: #222;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .user-info { display: flex; align-items: center; gap: 0.5rem; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; }
+    main {
+      max-width: 1000px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #e74c3c;
+      padding-bottom: 0.5rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #666;
+      text-decoration: none;
+    }
+    .submission-card {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .submission-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    .submission-meta {
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .submission-type {
+      background: #e74c3c;
+      color: #fff;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      text-transform: capitalize;
+    }
+    .submission-content {
+      background: #fff;
+      border: 1px solid #eee;
+      padding: 1rem;
+      border-radius: 4px;
+      margin: 1rem 0;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .submission-notes {
+      color: #666;
+      font-style: italic;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #eee;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .btn {
+      padding: 0.5rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .btn-approve {
+      background: #27ae60;
+      color: #fff;
+    }
+    .btn-reject {
+      background: #c0392b;
+      color: #fff;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #666;
+    }
+    .stats {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    .stat {
+      background: #f9f9f9;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+    }
+    .stat-number {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #e74c3c;
+    }
+    .stat-label {
+      color: #666;
+      font-size: 0.9rem;
+    }
+    footer {
+      margin-top: 3rem;
+      padding: 0.5rem;
+      font-size: 0.9em;
+    }
+  </style>
+  <link rel="stylesheet" href="/css/themes.css">
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <div style="width:150px;"></div>
+      <div class="header-main">
+        <h1 style="margin:0;">Moderation Queue</h1>
+      </div>
+      <div class="header-auth">
+        <% if (user) { %>
+          <div class="user-info">
+            <% if (user.profileImage) { %>
+              <img src="<%= user.profileImage %>" alt="" class="user-avatar">
+            <% } %>
+            <span style="font-size:0.9rem;"><%= user.firstName || user.email || 'Seeker' %></span>
+          </div>
+          <a href="/api/logout" class="auth-btn">Sign Out</a>
+        <% } %>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <a href="/" class="back-link">← Back to Scripture</a>
+    
+    <h2>Pending Submissions</h2>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-number"><%= submissions.length %></div>
+        <div class="stat-label">Pending Review</div>
+      </div>
+    </div>
+
+    <% if (submissions.length === 0) { %>
+      <div class="empty-state">
+        <h3>All caught up!</h3>
+        <p>No submissions waiting for review.</p>
+      </div>
+    <% } else { %>
+      <% submissions.forEach(sub => { %>
+        <div class="submission-card">
+          <div class="submission-header">
+            <div>
+              <strong><%= sub.book_title || 'No Book' %></strong>
+              <% if (sub.chapter_title) { %> / <%= sub.chapter_title %><% } %>
+              <div class="submission-meta">
+                Submitted by <%= sub.first_name || sub.email || 'Anonymous' %> 
+                on <%= new Date(sub.created_at).toLocaleDateString() %>
+              </div>
+            </div>
+            <span class="submission-type"><%= sub.submission_type %></span>
+          </div>
+          
+          <div class="submission-content"><%= sub.content %></div>
+          
+          <% if (sub.notes) { %>
+            <div class="submission-notes">
+              <strong>Author's notes:</strong> <%= sub.notes %>
+            </div>
+          <% } %>
+
+          <div class="action-buttons">
+            <form action="/moderate/<%= sub.id %>/approve" method="POST" style="display:inline;">
+              <button type="submit" class="btn btn-approve">Approve</button>
+            </form>
+            <form action="/moderate/<%= sub.id %>/reject" method="POST" style="display:inline;">
+              <button type="submit" class="btn btn-reject">Reject</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    <% } %>
+  </main>
+
+  <footer>
+    &copy; All Faiths On Fire - <%= new Date().getFullYear() %>
+  </footer>
+</body>
+</html>
