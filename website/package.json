@@ -10,8 +10,13 @@
   },
   "dependencies": {
     "better-sqlite3": "^8.0.0",
+    "connect-pg-simple": "^10.0.0",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "express-session": "^1.18.2",
+    "openid-client": "^6.8.1",
+    "passport": "^0.7.0",
+    "passport-openidconnect": "^0.1.2",
     "pg": "^8.16.3"
   },
   "devDependencies": {

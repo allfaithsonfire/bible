@@ -2,6 +2,11 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+import passport from 'passport';
+import * as client from 'openid-client';
+import { Strategy } from 'openid-client/passport';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,9 +15,140 @@ const app = express();
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+const PgSession = connectPgSimple(session);
+
+app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
+
+const sessionTtl = 7 * 24 * 60 * 60 * 1000;
+app.use(session({
+  store: new PgSession({ 
+    pool, 
+    tableName: 'sessions',
+    createTableIfMissing: false
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    httpOnly: true,
+    secure: true,
+    maxAge: sessionTtl
+  }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+let oidcConfig = null;
+const registeredStrategies = new Set();
+
+async function getOidcConfig() {
+  if (!oidcConfig) {
+    oidcConfig = await client.discovery(
+      new URL(process.env.ISSUER_URL || 'https://replit.com/oidc'),
+      process.env.REPL_ID
+    );
+  }
+  return oidcConfig;
+}
+
+async function upsertUser(claims) {
+  await pool.query(`
+    INSERT INTO users (id, email, first_name, last_name, profile_image_url, updated_at)
+    VALUES ($1, $2, $3, $4, $5, NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      first_name = EXCLUDED.first_name,
+      last_name = EXCLUDED.last_name,
+      profile_image_url = EXCLUDED.profile_image_url,
+      updated_at = NOW()
+  `, [claims.sub, claims.email, claims.first_name, claims.last_name, claims.profile_image_url]);
+}
+
+async function setupAuth() {
+  const config = await getOidcConfig();
+  
+  const verify = async (tokens, done) => {
+    try {
+      const claims = tokens.claims();
+      const user = {
+        claims,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: claims.exp
+      };
+      await upsertUser(claims);
+      done(null, user);
+    } catch (err) {
+      done(err);
+    }
+  };
+
+  const ensureStrategy = (domain) => {
+    const strategyName = `replitauth:${domain}`;
+    if (!registeredStrategies.has(strategyName)) {
+      const strategy = new Strategy({
+        name: strategyName,
+        config,
+        scope: 'openid email profile offline_access',
+        callbackURL: `https://${domain}/api/callback`
+      }, verify);
+      passport.use(strategy);
+      registeredStrategies.add(strategyName);
+    }
+    return strategyName;
+  };
+
+  passport.serializeUser((user, done) => done(null, user));
+  passport.deserializeUser((user, done) => done(null, user));
+
+  app.get('/api/login', (req, res, next) => {
+    const strategyName = ensureStrategy(req.hostname);
+    passport.authenticate(strategyName, {
+      prompt: 'login consent',
+      scope: ['openid', 'email', 'profile', 'offline_access']
+    })(req, res, next);
+  });
+
+  app.get('/api/callback', (req, res, next) => {
+    const strategyName = ensureStrategy(req.hostname);
+    passport.authenticate(strategyName, {
+      successReturnToOrRedirect: '/',
+      failureRedirect: '/'
+    })(req, res, next);
+  });
+
+  app.get('/api/logout', async (req, res) => {
+    const config = await getOidcConfig();
+    req.logout(() => {
+      const endSessionUrl = client.buildEndSessionUrl(config, {
+        client_id: process.env.REPL_ID,
+        post_logout_redirect_uri: `https://${req.hostname}`
+      });
+      res.redirect(endSessionUrl.href);
+    });
+  });
+}
+
+setupAuth().catch(err => console.error('Auth setup failed:', err));
+
+app.use((req, res, next) => {
+  if (req.user?.claims) {
+    res.locals.user = {
+      id: req.user.claims.sub,
+      email: req.user.claims.email,
+      firstName: req.user.claims.first_name,
+      lastName: req.user.claims.last_name,
+      profileImage: req.user.claims.profile_image_url
+    };
+  } else {
+    res.locals.user = null;
+  }
+  next();
+});
 
 app.get('/', async (req, res) => {
   try {

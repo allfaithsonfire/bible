@@ -18,6 +18,48 @@
       padding: 1rem;
       text-align: center;
     }
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header-main {
+      text-align: center;
+      flex: 1;
+    }
+    .header-auth {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .auth-btn {
+      background: #fff;
+      color: #222;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .auth-btn:hover {
+      background: #ddd;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+    .user-name {
+      font-size: 0.9rem;
+    }
     .layout {
       display: flex;
       flex-direction: column;
@@ -83,8 +125,26 @@
 <body>
   <div class="layout">
     <header>
-      <h1>All Faiths On Fire - A Ministry of Good Works</h1>
-      <div><em><%= quote.quote %></em></div>
+      <div class="header-content">
+        <div style="width:150px;"></div>
+        <div class="header-main">
+          <h1 style="margin:0;">All Faiths On Fire - A Ministry of Good Works</h1>
+          <div><em><%= quote.quote %></em></div>
+        </div>
+        <div class="header-auth">
+          <% if (user) { %>
+            <div class="user-info">
+              <% if (user.profileImage) { %>
+                <img src="<%= user.profileImage %>" alt="" class="user-avatar">
+              <% } %>
+              <span class="user-name"><%= user.firstName || user.email || 'Seeker' %></span>
+            </div>
+            <a href="/api/logout" class="auth-btn">Sign Out</a>
+          <% } else { %>
+            <a href="/api/login" class="auth-btn">Join Us</a>
+          <% } %>
+        </div>
+      </div>
     </header>
     <div class="main">
       <nav class="toc">

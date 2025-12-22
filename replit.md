@@ -1,11 +1,11 @@
 # All Faiths On Fire - A Ministry of Good Works
 
 ## Overview
-This is a collaborative, living scripture platform consisting of a website for browsing religious texts and an AI-powered Discord bot for community engagement. The project aims to create an inclusive spiritual resource.
+This is a collaborative, living scripture platform consisting of a website for browsing religious texts and an AI-powered Discord bot for community engagement. The project aims to create an inclusive spiritual resource where people can join, contribute, and engage with the community.
 
 ## Project Structure
 - `website/` - Main Express.js web application
-  - `server.js` - Express server entry point
+  - `server.js` - Express server with Replit Auth (OIDC)
   - `views/` - EJS templates
   - `public/` - Static assets (CSS, JS)
 - `discordbot/` - AI-powered Discord bot
@@ -18,7 +18,15 @@ This is a collaborative, living scripture platform consisting of a website for b
 - Node.js 20
 - Express.js with EJS templating
 - PostgreSQL database (via pg client)
+- Replit Auth (OpenID Connect) for user authentication
 - OpenAI (via Replit AI Integrations) for Discord bot conversations
+
+## Authentication
+The website uses Replit Auth (OIDC) for user authentication:
+- "Join Us" button in header allows users to sign in with Google, GitHub, Apple, or email
+- User sessions stored in PostgreSQL (sessions table)
+- User profiles stored in users table
+- Uses SESSION_SECRET environment variable (auto-provided by Replit)
 
 ## Running the Website
 The website runs on port 5000. Start with:
@@ -49,12 +57,22 @@ cd discordbot && npm start
 
 ## Database
 The PostgreSQL database (accessed via DATABASE_URL) contains:
-- Books and chapters with hierarchical organization
-- Verses with verse numbers
-- Quotes for display
-- Tags, morals, consequences, and redemptions for chapters
+- `books` - Scripture books
+- `chapters` - Chapters within books
+- `verses` - Individual verses with verse numbers
+- `quotes` - Wisdom quotes for display
+- `morals`, `consequences`, `redemptions` - Chapter metadata
+- `users` - Registered user accounts
+- `sessions` - User session storage
+
+## Deployment
+Production deployment runs both website and Discord bot:
+```
+node website/server.js & node discordbot/bot.js
+```
 
 ## Recent Changes
+- December 2025: Added Replit Auth (OIDC) for user authentication
 - December 2025: Enhanced Discord bot with AI-powered conversations using OpenAI
 - December 2025: Added memory management (LRU cleanup) and scripture context caching
 - December 2025: Updated Discord bot to use PostgreSQL
