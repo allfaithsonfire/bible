@@ -9,7 +9,6 @@
     "prod": "pm2 start bot.js --name allfaithsdiscordbot"
   },
   "dependencies": {
-    "allfaithsonfire": "file:..",
     "discord.js": "^14.14.1",
     "openai": "^6.15.0",
     "pg": "^8.11.3"
