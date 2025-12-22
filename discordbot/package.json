@@ -11,7 +11,7 @@
   "dependencies": {
     "allfaithsonfire": "file:..",
     "discord.js": "^14.14.1",
-    "sqlite3": "^5.1.6"
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

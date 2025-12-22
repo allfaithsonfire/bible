@@ -1,38 +1,41 @@
-
 import { Client, GatewayIntentBits } from 'discord.js';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import { readFile } from 'fs/promises';
+import pg from 'pg';
 
-const config = JSON.parse(await readFile('./config.json', 'utf-8'));
+const { Pool } = pg;
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
-let db;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
+const POST_TIME_UTC = process.env.DISCORD_POST_TIME_UTC || '12:00';
 
 async function postTodaysWord(channel) {
-  const row = await db.get('SELECT text FROM verses ORDER BY RANDOM() LIMIT 1');
-  if (row) {
-    channel.send(`📜 **Today’s Word:**
-${row.text}`);
+  const result = await pool.query('SELECT text FROM verses ORDER BY RANDOM() LIMIT 1');
+  if (result.rows.length > 0) {
+    channel.send(`📜 **Today's Word:**
+${result.rows[0].text}`);
   }
 }
 
 async function postQuote(channel) {
-  const row = await db.get('SELECT quote FROM quotes ORDER BY RANDOM() LIMIT 1');
-  if (row) {
-    channel.send(`💬 *${row.quote}*`);
+  const result = await pool.query('SELECT text FROM quotes ORDER BY RANDOM() LIMIT 1');
+  if (result.rows.length > 0) {
+    channel.send(`💬 *${result.rows[0].text}*`);
   }
 }
 
 client.once('ready', async () => {
   console.log(`AllFaithsBot ready as ${client.user.tag}`);
-  db = await open({ filename: config.dbPath, driver: sqlite3.Database });
 
   const now = new Date();
-  const [hour, minute] = config.postTimeUTC.split(':').map(Number);
+  const [hour, minute] = POST_TIME_UTC.split(':').map(Number);
   const msUntilPost = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute, 0, 0).getTime() - now.getTime();
   setTimeout(() => {
-    const channel = client.channels.cache.get(config.channelId);
+    const channel = client.channels.cache.get(CHANNEL_ID);
     if (channel) postTodaysWord(channel);
     setInterval(() => postTodaysWord(channel), 24 * 60 * 60 * 1000); // every 24h
   }, msUntilPost > 0 ? msUntilPost : 1000); // post soon if missed
@@ -51,4 +54,4 @@ client.on('messageCreate', async message => {
   }
 });
 
-client.login(config.token);
+client.login(DISCORD_TOKEN);
