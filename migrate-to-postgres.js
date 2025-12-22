@@ -1,6 +1,10 @@
 import sqlite3 from 'better-sqlite3';
 import pg from 'pg';
 
+console.log('WARNING: This script will DROP ALL EXISTING DATA in PostgreSQL!');
+console.log('Only run this once to migrate from SQLite to PostgreSQL.');
+console.log('');
+
 const { Pool } = pg;
 
 const sqliteDb = sqlite3('./allfaithsonfire.db');
