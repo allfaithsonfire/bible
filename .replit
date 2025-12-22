@@ -37,8 +37,8 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "vm"
-run = ["bash", "-c", "(cd website && node server.js) & (cd discordbot && node bot.js) & wait"]
-build = ["bash", "-c", "(cd website && npm install) && (cd discordbot && npm install)"]
+run = ["bash", "-c", "cd website && node server.js & cd ../discordbot && node bot.js & wait"]
+build = ["bash", "-c", "cd website && npm install && cd ../discordbot && npm install"]
 
 [userenv]
 
