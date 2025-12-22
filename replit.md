@@ -1,7 +1,7 @@
 # All Faiths On Fire - A Ministry of Good Works
 
 ## Overview
-This is a collaborative, living scripture platform consisting of a website for browsing religious texts and an AI-powered Discord bot for community engagement. The project aims to create an inclusive spiritual resource where people can join, contribute, and engage with the community.
+This is a collaborative, living scripture platform consisting of a website for browsing religious texts and an AI-powered Discord bot for community engagement. Discord is the primary platform for community building, with the website serving as a learning resource.
 
 ## Project Structure
 - `website/` - Main Express.js web application
@@ -18,75 +18,74 @@ This is a collaborative, living scripture platform consisting of a website for b
 - Node.js 20
 - Express.js with EJS templating
 - PostgreSQL database (via pg client)
-- Replit Auth (OpenID Connect) for user authentication
+- Replit Auth (OpenID Connect) for moderator authentication
 - OpenAI (via Replit AI Integrations) for Discord bot conversations
+- Discord.js for bot functionality
 
-## Authentication
-The website uses Replit Auth (OIDC) for user authentication:
-- "Join Us" button in header allows users to sign in with Google, GitHub, Apple, or email
-- User sessions stored in PostgreSQL (sessions table)
-- User profiles stored in users table
-- Uses SESSION_SECRET environment variable (auto-provided by Replit)
+## Discord-First Community
+Discord is the primary community hub. The website directs users to join Discord:
+- Main "Join Us on Discord" button in header links to https://discord.gg/4kypdCMsC5
+- Sidebar prominently features Discord link
+- Submission page encourages Discord for contributions
+
+## Discord Bot Features
+- **Slash Commands**:
+  - `/submit` - Opens a modal to submit verses, chapters, or wisdom (saves to database)
+  - `/word` - Posts a random scripture verse
+  - `/quote` - Posts a wisdom quote
+- **AI Conversations**: Responds when mentioned (@All Faiths) or replied to
+- **Scripture Context**: AI responses informed by verses, morals, and quotes
+- **Daily Word**: Posts random scripture at configured time (12:00 UTC default)
+- **Welcome Messages**: New members receive DM with getting started info
+- **Memory Management**: LRU-based cleanup, 100 conversations max, 30-min TTL
 
 ## Community Submissions
-Members can submit their own scripture contributions:
-- `/submit` - Submission form for verses, chapters, books, quotes, or edits
-- `/moderate` - Moderation queue for reviewing pending submissions
-- Submissions are stored with status (pending/approved/rejected)
+Members can submit scripture contributions via:
+1. **Discord** (preferred): Use `/submit` command - opens modal form
+2. **Website**: `/submit` form for logged-in users
+
+All submissions go to moderation queue at `/moderate`
 
 ### Moderator Access
-By default, all logged-in users can access the moderation queue. To restrict access:
+By default, all logged-in users can moderate. To restrict:
 - Set `MODERATOR_IDS` environment variable with comma-separated user IDs
 - Example: `MODERATOR_IDS=user123,user456`
 
 ## Running the Website
-The website runs on port 5000. Start with:
+The website runs on port 5000:
 ```
 cd website && npm start
 ```
 
 ## Running the Discord Bot
-The Discord bot requires these environment variables:
+Required environment variables:
 - `DISCORD_TOKEN` - Discord bot token
 - `DISCORD_CHANNEL_ID` - Channel ID for daily posts
-- `DISCORD_POST_TIME_UTC` - (Optional) Time for daily posts, defaults to "12:00"
-
-The bot uses Replit AI Integrations for OpenAI access (no API key needed).
+- `DISCORD_POST_TIME_UTC` - (Optional) Daily post time, defaults to "12:00"
 
 Start with:
 ```
 cd discordbot && npm start
 ```
 
-### Bot Features
-- **AI Conversations**: Responds when mentioned (@All Faiths) or when someone replies to it
-- **Scripture Context**: AI responses are informed by verses, morals, and quotes from the database
-- **Daily Word**: Posts a random scripture at the configured time (12:00 UTC default)
-- **Commands**: `/word` for daily scripture, `/quote` for wisdom quotes
-- **Memory Management**: LRU-based cleanup keeps 100 conversations max, 30-min TTL
-- **Context Caching**: Scripture context cached for 5 minutes to reduce DB load
-
 ## Database
-The PostgreSQL database (accessed via DATABASE_URL) contains:
-- `books` - Scripture books
-- `chapters` - Chapters within books
-- `verses` - Individual verses with verse numbers
-- `quotes` - Wisdom quotes for display
+PostgreSQL database (via DATABASE_URL) contains:
+- `books`, `chapters`, `verses` - Scripture content
+- `quotes` - Wisdom quotes
 - `morals`, `consequences`, `redemptions` - Chapter metadata
-- `users` - Registered user accounts
-- `sessions` - User session storage
-- `submissions` - Community scripture contributions (pending review)
+- `users`, `sessions` - User accounts and sessions
+- `submissions` - Community contributions (with discord_user_id, discord_username for Discord submissions)
 
 ## Deployment
-Production deployment runs both website and Discord bot:
+Production runs both website and Discord bot:
 ```
 node website/server.js & node discordbot/bot.js
 ```
 
 ## Recent Changes
+- December 2025: Made Discord the primary community path (website directs to Discord)
+- December 2025: Added /submit slash command with modal form
+- December 2025: Added welcome messages for new Discord members
 - December 2025: Added community submission system with moderation queue
-- December 2025: Added Replit Auth (OIDC) for user authentication
-- December 2025: Enhanced Discord bot with AI-powered conversations using OpenAI
-- December 2025: Added memory management (LRU cleanup) and scripture context caching
-- December 2025: Updated Discord bot to use PostgreSQL
-- December 2025: Migrated from SQLite to PostgreSQL
+- December 2025: Added Replit Auth (OIDC) for moderator authentication
+- December 2025: Enhanced Discord bot with AI-powered conversations
