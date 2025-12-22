@@ -37,3 +37,9 @@ externalPort = 80
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "website/server.js"]
+
+[userenv]
+
+[userenv.shared]
+DISCORD_APP_ID = "1399412635878822010"
+DISCORD_PUBLIC_KEY = "3c9f1f4347b788fca44caef06c35ffdf61c91f245baf5c94c65fe527b67786ae"
