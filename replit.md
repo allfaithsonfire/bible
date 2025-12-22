@@ -1,14 +1,15 @@
 # All Faiths On Fire - A Ministry of Good Works
 
 ## Overview
-This is a web application that displays religious texts organized into books, chapters, and verses. It uses PostgreSQL for data storage.
+This is a collaborative, living scripture platform consisting of a website for browsing religious texts and an AI-powered Discord bot for community engagement. The project aims to create an inclusive spiritual resource.
 
 ## Project Structure
 - `website/` - Main Express.js web application
   - `server.js` - Express server entry point
   - `views/` - EJS templates
   - `public/` - Static assets (CSS, JS)
-- `discordbot/` - Discord bot (separate component)
+- `discordbot/` - AI-powered Discord bot
+  - `bot.js` - Main bot with OpenAI integration
 - `sql/` - SQL scripts and queries
 - `bible/` - Static HTML chapters
 - `img/` - Image assets
@@ -17,6 +18,7 @@ This is a web application that displays religious texts organized into books, ch
 - Node.js 20
 - Express.js with EJS templating
 - PostgreSQL database (via pg client)
+- OpenAI (via Replit AI Integrations) for Discord bot conversations
 
 ## Running the Website
 The website runs on port 5000. Start with:
@@ -30,10 +32,20 @@ The Discord bot requires these environment variables:
 - `DISCORD_CHANNEL_ID` - Channel ID for daily posts
 - `DISCORD_POST_TIME_UTC` - (Optional) Time for daily posts, defaults to "12:00"
 
+The bot uses Replit AI Integrations for OpenAI access (no API key needed).
+
 Start with:
 ```
 cd discordbot && npm start
 ```
+
+### Bot Features
+- **AI Conversations**: Responds when mentioned (@All Faiths) or when someone replies to it
+- **Scripture Context**: AI responses are informed by verses, morals, and quotes from the database
+- **Daily Word**: Posts a random scripture at the configured time (12:00 UTC default)
+- **Commands**: `/word` for daily scripture, `/quote` for wisdom quotes
+- **Memory Management**: LRU-based cleanup keeps 100 conversations max, 30-min TTL
+- **Context Caching**: Scripture context cached for 5 minutes to reduce DB load
 
 ## Database
 The PostgreSQL database (accessed via DATABASE_URL) contains:
@@ -43,5 +55,7 @@ The PostgreSQL database (accessed via DATABASE_URL) contains:
 - Tags, morals, consequences, and redemptions for chapters
 
 ## Recent Changes
+- December 2025: Enhanced Discord bot with AI-powered conversations using OpenAI
+- December 2025: Added memory management (LRU cleanup) and scripture context caching
 - December 2025: Updated Discord bot to use PostgreSQL
 - December 2025: Migrated from SQLite to PostgreSQL
