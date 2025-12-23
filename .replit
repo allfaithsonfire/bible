@@ -39,9 +39,10 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "vm"
+deploymentTarget = "static"
 run = ["bash", "-lc", "set -e; (cd website && node server.js) & web=$!; (cd discordbot && node bot.js) & bot=$!; wait $web $bot"]
 build = ["bash", "-lc", "set -e; (cd website && npm install); (cd discordbot && npm install)"]
+publicDir = "static-test"
 
 [userenv]
 
