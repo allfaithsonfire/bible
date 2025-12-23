@@ -6,7 +6,10 @@ import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import passport from 'passport';
 import * as client from 'openid-client';
-import { Strategy } from 'openid-client/passport';
+import { Strategy as OidcStrategy } from 'openid-client/passport';
+import { Strategy as DiscordStrategy } from 'passport-discord-auth';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
