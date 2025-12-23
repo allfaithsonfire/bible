@@ -3,7 +3,7 @@
   <div class="book-toggle"><%= book.title %></div>
   <ul class="chapter-list">
     <% chapters.filter(c => c.book_id === book.id).forEach(ch => { %>
-      <li><a class="chapter-link" href="/chapter/<%= ch.filename %>"><%= ch.title %></a></li>
+      <li><a class="chapter-link" href="/?chapter=<%= ch.filename %>"><%= ch.title %></a></li>
     <% }); %>
   </ul>
 <% }); %>
