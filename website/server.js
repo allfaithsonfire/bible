@@ -249,6 +249,14 @@ app.get('/chapter/:filename', async (req, res) => {
   }
 });
 
+app.get('/content/about', (req, res) => {
+  res.render('content/about');
+});
+
+app.get('/content/creed', (req, res) => {
+  res.render('content/creed');
+});
+
 app.get('/submit', (req, res) => {
   res.render('submit', { success: false });
 });

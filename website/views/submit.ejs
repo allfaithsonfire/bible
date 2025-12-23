@@ -2,20 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <title>Submit Scripture - All Faiths On Fire</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
       padding: 0;
-      font-family: sans-serif;
+      font-family: 'Georgia', 'Times New Roman', serif;
       min-height: 100%;
+      background: #faf8f5;
+      color: #2c2416;
     }
-    header, footer {
-      background: #222;
-      color: #fff;
-      padding: 1rem;
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #f0e6d3;
+      padding: 1.25rem 1rem;
       text-align: center;
+      border-bottom: 3px solid #c9a227;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      letter-spacing: 0.02em;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+    footer {
+      background: #1a1a2e;
+      color: #a09080;
+      padding: 0.75rem;
+      font-size: 0.85em;
+      text-align: center;
+      margin-top: 3rem;
     }
     .header-content {
       display: flex;
@@ -34,14 +51,20 @@
       gap: 0.75rem;
     }
     .auth-btn {
-      background: #fff;
-      color: #222;
+      background: #c9a227;
+      color: #1a1a2e;
       border: none;
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 1.25rem;
       border-radius: 4px;
       cursor: pointer;
       text-decoration: none;
       font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .auth-btn:hover {
+      background: #e0b830;
+      transform: translateY(-1px);
     }
     .user-info {
       display: flex;
@@ -52,23 +75,29 @@
       width: 32px;
       height: 32px;
       border-radius: 50%;
+      border: 2px solid #c9a227;
+    }
+    .user-name {
+      font-size: 0.9rem;
+      color: #f0e6d3;
     }
     main {
       max-width: 800px;
       margin: 2rem auto;
-      padding: 0 1rem;
+      padding: 0 1.5rem;
     }
     h2 {
-      color: #333;
-      border-bottom: 2px solid #e74c3c;
+      color: #3d3425;
+      border-bottom: 2px solid #c9a227;
       padding-bottom: 0.5rem;
     }
     .intro {
-      background: #f9f9f9;
+      background: linear-gradient(180deg, #f5f0e8 0%, #ebe4d8 100%);
       padding: 1.5rem;
       border-radius: 8px;
       margin-bottom: 2rem;
-      line-height: 1.6;
+      line-height: 1.7;
+      border: 1px solid #d4c9b8;
     }
     .form-group {
       margin-bottom: 1.5rem;
@@ -77,51 +106,74 @@
       display: block;
       font-weight: bold;
       margin-bottom: 0.5rem;
-      color: #333;
+      color: #3d3425;
     }
     .label-hint {
       font-weight: normal;
-      color: #666;
+      color: #8b7355;
       font-size: 0.9rem;
     }
     input[type="text"], select, textarea {
       width: 100%;
       padding: 0.75rem;
-      border: 1px solid #ccc;
+      border: 1px solid #d4c9b8;
       border-radius: 4px;
       font-size: 1rem;
       font-family: inherit;
+      background: #fdfcfa;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #c9a227;
+      box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.2);
     }
     textarea {
       min-height: 200px;
-      line-height: 1.6;
+      line-height: 1.7;
     }
     .submit-btn {
-      background: #e74c3c;
-      color: #fff;
+      background: #c9a227;
+      color: #1a1a2e;
       border: none;
       padding: 1rem 2rem;
       font-size: 1.1rem;
+      font-weight: 600;
       border-radius: 4px;
       cursor: pointer;
+      transition: all 0.2s;
     }
     .submit-btn:hover {
-      background: #c0392b;
+      background: #e0b830;
+      transform: translateY(-1px);
     }
     .login-prompt {
       text-align: center;
       padding: 3rem;
-      background: #f9f9f9;
+      background: linear-gradient(180deg, #f5f0e8 0%, #ebe4d8 100%);
       border-radius: 8px;
+      border: 1px solid #d4c9b8;
     }
-    .login-prompt a {
+    .login-prompt h3 {
+      color: #3d3425;
+    }
+    .login-prompt p {
+      color: #5a4d3a;
+      line-height: 1.7;
+    }
+    .login-prompt a.discord-btn {
       display: inline-block;
-      background: #e74c3c;
+      background: #5865F2;
       color: #fff;
       padding: 1rem 2rem;
       text-decoration: none;
       border-radius: 4px;
       margin-top: 1rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .login-prompt a.discord-btn:hover {
+      background: #4752c4;
+      transform: translateY(-1px);
     }
     .success-message {
       background: #27ae60;
@@ -133,16 +185,12 @@
     .back-link {
       display: inline-block;
       margin-bottom: 1rem;
-      color: #666;
+      color: #8b7355;
       text-decoration: none;
+      transition: color 0.15s;
     }
     .back-link:hover {
-      color: #333;
-    }
-    footer {
-      margin-top: 3rem;
-      padding: 0.5rem;
-      font-size: 0.9em;
+      color: #c9a227;
     }
   </style>
   <link rel="stylesheet" href="/css/themes.css">
@@ -160,11 +208,11 @@
             <% if (user.profileImage) { %>
               <img src="<%= user.profileImage %>" alt="" class="user-avatar">
             <% } %>
-            <span style="font-size:0.9rem;"><%= user.firstName || user.email || 'Seeker' %></span>
+            <span class="user-name"><%= user.firstName || user.email || 'Seeker' %></span>
           </div>
           <a href="/api/logout" class="auth-btn">Sign Out</a>
         <% } else { %>
-          <a href="/api/login" class="auth-btn">Join Us</a>
+          <a href="https://discord.gg/4kypdCMsC5" target="_blank" class="auth-btn" style="background:#5865F2;color:#fff;">Join Us on Discord</a>
         <% } %>
       </div>
     </div>
@@ -179,8 +227,8 @@
       <div class="login-prompt">
         <h3>Join Our Community of Writers</h3>
         <p>The heart of All Faiths On Fire beats on Discord. That's where we gather, where we write together, where the fire burns brightest.</p>
-        <a href="https://discord.gg/4kypdCMsC5" target="_blank" style="background:#5865F2;">Join Us on Discord</a>
-        <p style="margin-top:1.5rem;font-size:0.9rem;color:#666;">Already a member? <a href="/api/login" style="color:#e74c3c;">Sign in here</a> to submit through the website.</p>
+        <a href="https://discord.gg/4kypdCMsC5" target="_blank" class="discord-btn">Join Us on Discord</a>
+        <p style="margin-top:1.5rem;font-size:0.9rem;">Already a member? <a href="/api/login" style="color:#c9a227;">Sign in here</a> to submit through the website.</p>
       </div>
     <% } else { %>
       <% if (typeof success !== 'undefined' && success) { %>

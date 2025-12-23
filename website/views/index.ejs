@@ -331,17 +331,17 @@ function openBookForChapter(filename) {
   const parent = link.closest('.chapter-list');
   if (parent) parent.classList.add('open');
 }
-function activateTocToggles() {
-  document.querySelectorAll('.book-toggle').forEach(toggle => {
-    toggle.addEventListener('click', e => {
-      const targetId = toggle.dataset.target;
-      const content = document.getElementById(targetId);
-      if (content) {
-        content.classList.toggle('open');
-      }
-      e.stopPropagation();
-    });
-  });
+async function loadContent(url, push = true) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const html = await res.text();
+    document.querySelector('.inner-content').innerHTML = html;
+    if (push) history.pushState({ url }, '', url.includes('?') ? url : '?page=' + url.replace('/content/', ''));
+    return true;
+  } catch(e) {
+    return false;
+  }
 }
 async function loadChapter(filename, push = true) {
   const res = await fetch('/chapter/' + filename);
@@ -349,11 +349,12 @@ async function loadChapter(filename, push = true) {
   document.querySelector('.inner-content').innerHTML = html;
   if (push) history.pushState({ chapter: filename }, '', '?chapter=' + filename);
   openBookForChapter(filename);
-  activateTocToggles();
 }
 window.onpopstate = (e) => {
   const chap = e.state?.chapter;
+  const url = e.state?.url;
   if (chap) loadChapter(chap, false);
+  else if (url) loadContent(url, false);
 };
 window.onload = () => {
   const theme = getCookie("theme");
@@ -365,15 +366,34 @@ window.onload = () => {
   }
   const chapterParam = new URLSearchParams(window.location.search).get("chapter");
   if (chapterParam) loadChapter(chapterParam, false);
-  document.querySelectorAll('.chapter-link').forEach(link => {
-    link.addEventListener('click', e => {
+
+  document.querySelector('.toc').addEventListener('click', e => {
+    const toggle = e.target.closest('.book-toggle');
+    if (toggle) {
+      const targetId = toggle.dataset.target;
+      const content = document.getElementById(targetId);
+      if (content) content.classList.toggle('open');
+      e.stopPropagation();
+      return;
+    }
+    const link = e.target.closest('.chapter-link');
+    if (link) {
       e.preventDefault();
       const filename = new URL(link.href).searchParams.get('chapter');
       if (filename) loadChapter(filename);
-      e.stopPropagation();
-    });
+    }
   });
-  activateTocToggles();
+
+  document.querySelector('.right').addEventListener('click', e => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (href.startsWith('http') || href.startsWith('/submit')) return;
+    if (href === '/about' || href === '/creed') {
+      e.preventDefault();
+      loadContent('/content' + href);
+    }
+  });
 };
 function goChapter(direction) {
   const chapters = [...document.querySelectorAll('.chapter-link')];
