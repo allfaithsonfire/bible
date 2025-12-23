@@ -77,12 +77,18 @@ PostgreSQL database (via DATABASE_URL) contains:
 - `submissions` - Community contributions (with discord_user_id, discord_username for Discord submissions)
 
 ## Deployment
-Production runs both website and Discord bot:
-```
-node website/server.js & node discordbot/bot.js
-```
+Production uses **Reserved VM** deployment (required for Discord bot's WebSocket):
+- **Build**: `cd website && npm install && cd ../discordbot && npm install`
+- **Run**: `cd website && node server.js & cd discordbot && node bot.js`
+- Custom domain: allfaithsonfire.org
+
+### Important Deployment Notes
+- **NEVER switch deployment types** (Static/Autoscale/VM) - this clears custom domain links and requires re-linking
+- Reserved VM is required because the Discord bot needs persistent WebSocket connections
+- The website and bot run together in the same VM
 
 ## Recent Changes
+- December 2025: Fixed production deployment - discovered switching deployment types clears custom domains
 - December 2025: Made Discord the primary community path (website directs to Discord)
 - December 2025: Added /submit slash command with modal form
 - December 2025: Added welcome messages for new Discord members
