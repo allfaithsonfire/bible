@@ -1,0 +1,228 @@
+0) Stabilize the spine (so everything else doesn’t wobble)
+
+0.1 Enable strict SQLite integrity
+
+Ensure PRAGMA foreign_keys = ON; at app start (every connection).
+
+Add a small “DB health check” route (admin-only) that verifies:
+
+foreign keys enabled
+
+DB file reachable
+
+basic counts (books/chapters/verses)
+
+Done when: a health page shows counts + foreign_keys=ON and your app refuses to boot if DB can’t be opened.
+
+1) Discord login (everyone has an identity, even if anonymous to the public)
+
+1.1 OAuth: Discord sign-in
+
+Add “Sign in with Discord”
+
+Store a user record (create a users table if you don’t already have one in code):
+
+id (pk), discord_id (unique), username, avatar, created_at, last_login_at
+
+Session cookie: httpOnly, secure, sameSite=lax
+
+1.2 Roles
+
+Add user_roles (or user_role) table:
+
+role: admin, moderator, author, reader (default)
+
+Middleware: requireAuth, requireRole(['moderator','admin'])
+
+Done when: clicking “Contribute” forces login; after login you return to where you were; role gates work.
+
+2) Submission portal (the “write it into the fire” pipeline)
+
+2.1 Submission data model
+Add tables:
+
+submissions
+
+id, type (chapter | verse | moral | consequence | redemption | link | tag_suggestion)
+
+status (draft | submitted | approved | rejected)
+
+payload_json (the proposed content)
+
+created_by_user_id
+
+created_at, submitted_at, reviewed_at, reviewed_by_user_id
+
+review_note
+
+Optional: submission_comments (mod discussion thread)
+
+2.2 Submit UI
+
+“New Chapter” form:
+
+book, title, filename (auto-suggest), tags, verses editor (verse-numbered)
+
+morals / consequences / redemptions picker (or “create new” inline)
+
+links (title/url/desc)
+
+“Suggest tags” for an existing chapter/verse
+
+2.3 Moderator queue
+
+List: newest first, filter by type/status
+
+Detail: render payload as it would appear in scripture
+
+Buttons: approve / reject / request changes (keeps status= draft and adds note)
+
+2.4 Approval writes to canon
+Approval should:
+
+Insert into chapters + verses
+
+Insert into join tables: chapter_tags, chapter_links, chapter_morals, chapter_consequences, chapter_redemptions
+
+Create a revisions row noting “Approved submission #X”
+
+Done when: a moderator can approve a submission and it immediately appears in the reader + ToC.
+
+3) Teachings pane (Morals / Consequences / Redemptions shown every chapter)
+
+You already have the tables + join tables for this. 
+
+allfaithsonfire.db
+
+3.1 Reader UI: “Teachings” section
+At bottom of chapter:
+
+Morals
+
+Consequences
+
+Redemptions
+Each supports multiple entries.
+
+3.2 Linkouts
+Display links connected via chapter_links
+
+Done when: every chapter renders its attached moral/consequence/redemption + links (if present), cleanly.
+
+4) Conversation (site-native reflections, Discord as identity)
+
+This is the “communal learning begins” piece you want.
+
+4.1 Add reflections tables
+You previously wanted threaded replies. Here’s a clean set:
+
+reflection_threads
+
+id, chapter_id, verse_id nullable, created_by_user_id, created_at, is_locked
+
+reflection_messages
+
+id, thread_id, user_id, prev_message_id nullable (threading)
+
+message, created_at, edited_at, is_deleted
+
+moderation_status (visible, held, removed), moderation_note
+
+4.2 UI
+
+Button: “Reflect” on chapter
+
+Clicking a verse → shows “Reflect on Verse X”
+
+Thread view with replies (simple indentation)
+
+4.3 Moderation tools
+
+Hold/remove message
+
+Lock thread
+
+Auto-hold first message from new accounts (optional)
+
+Done when: logged-in users can post reflections; mods can moderate; verse-level reflections exist.
+
+5) Search and tags (so the scripture becomes usable at scale)
+
+5.1 Search endpoint
+
+Search by:
+
+chapter title
+
+verse text
+
+tags
+
+morals/consequences/redemptions text
+Return grouped results with links to the chapter, and verse anchor if applicable.
+
+5.2 Tag browsing
+
+Click a tag → list chapters
+
+(Later) tag cloud / “meditation map”
+
+Done when: “search: courage” returns Courage chapter + other matching verses/teachings.
+
+6) UX polish that makes it feel alive
+
+6.1 Verse interactions
+
+Click verse → highlight + copy link (deep-link ?chapter=...#v12)
+
+Keyboard nav ← → between chapters
+
+Scroll-to-top button (both ToC pane and reader pane)
+
+6.2 Theme selector
+
+3–4 themes (light / dark / soft color / maybe “parchment”)
+
+Save to localStorage + (optional) user profile
+
+6.3 Fixed header + rotating quote
+
+Pull random quotes row and render under the title
+
+Optional daily cache using posted_at
+
+Done when: it feels like a real reader, not a static blog.
+
+7) Admin “tools of stewardship” (so you don’t drown later)
+
+7.1 Revisions viewer
+You already have revisions. 
+
+allfaithsonfire.db
+
+
+Build an admin page:
+
+filter by entity_type/entity_id
+
+show note + author + timestamp
+
+7.2 Backups
+
+Admin button: “Download DB snapshot”
+
+Scheduled backup job (daily) to a safe location (even if it’s just Replit storage)
+
+Done when: you can undo mistakes and sleep better.
+
+8) Hardening (because internet)
+
+Rate limit submit/reflection endpoints
+
+Basic HTML sanitization for reflections (no script tags)
+
+CSRF protection for form posts
+
+Audit logs for mod actions (simple table: who did what, when)
+
+Done when: trolls get bored.

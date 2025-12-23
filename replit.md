@@ -18,9 +18,12 @@ This is a collaborative, living scripture platform consisting of a website for b
 - Node.js 20
 - Express.js with EJS templating
 - PostgreSQL database (via pg client)
-- Replit Auth (OpenID Connect) for moderator authentication
+- Dual OAuth: Discord (production) / Replit (development)
 - OpenAI (via Replit AI Integrations) for Discord bot conversations
 - Discord.js for bot functionality
+
+## Development Roadmap
+See `ROADMAP.md` for the full feature roadmap with progress tracking.
 
 ## Discord-First Community
 Discord is the primary community hub. The website directs users to join Discord:
@@ -88,10 +91,12 @@ Production uses **Reserved VM** deployment (required for Discord bot's WebSocket
 - The website and bot run together in the same VM
 
 ## Recent Changes
-- December 2025: Fixed production deployment - discovered switching deployment types clears custom domains
-- December 2025: Made Discord the primary community path (website directs to Discord)
+- December 2025: Added dual OAuth - Discord for production, Replit for development
+- December 2025: Submit form autocomplete for existing books/chapters
+- December 2025: Edit mode with dropdowns + book_id/chapter_id tracking
+- December 2025: Fixed production deployment - switching deployment types clears custom domains
+- December 2025: Made Discord the primary community path
 - December 2025: Added /submit slash command with modal form
 - December 2025: Added welcome messages for new Discord members
 - December 2025: Added community submission system with moderation queue
-- December 2025: Added Replit Auth (OIDC) for moderator authentication
 - December 2025: Enhanced Discord bot with AI-powered conversations
