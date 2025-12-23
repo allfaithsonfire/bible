@@ -372,7 +372,11 @@ window.onload = () => {
     if (toggle) {
       const targetId = toggle.dataset.target;
       const content = document.getElementById(targetId);
-      if (content) content.classList.toggle('open');
+      if (content) {
+        const wasOpen = content.classList.contains('open');
+        document.querySelectorAll('.chapter-list.open').forEach(el => el.classList.remove('open'));
+        if (!wasOpen) content.classList.add('open');
+      }
       e.stopPropagation();
       return;
     }
