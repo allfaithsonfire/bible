@@ -50,7 +50,7 @@ build = [
   "-c",
   "bash -lc set -e; (cd website && npm install); (cd discordbot && npm install)",
 ]
-ignorePorts = true
+ignorePorts = false
 
 [userenv]
 
