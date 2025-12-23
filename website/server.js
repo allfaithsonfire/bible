@@ -88,85 +88,170 @@ async function upsertUser(claims) {
   `, [claims.sub, claims.email, claims.first_name, claims.last_name, claims.profile_image_url]);
 }
 
+async function upsertDiscordUser(profile) {
+  const discordId = `discord:${profile.id}`;
+  const avatarUrl = profile.avatar 
+    ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+    : null;
+  
+  await pool.query(`
+    INSERT INTO users (id, email, first_name, last_name, profile_image_url, updated_at)
+    VALUES ($1, $2, $3, $4, $5, NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      first_name = EXCLUDED.first_name,
+      profile_image_url = EXCLUDED.profile_image_url,
+      updated_at = NOW()
+  `, [discordId, profile.email || null, profile.global_name || profile.username, null, avatarUrl]);
+  
+  return discordId;
+}
+
 async function setupAuth() {
   console.log('[Auth] Setting up authentication...');
-  const config = await getOidcConfig();
-  console.log('[Auth] OIDC config loaded');
   
-  const verify = async (tokens, done) => {
-    try {
-      const claims = tokens.claims();
-      const user = {
-        claims,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: claims.exp
-      };
-      await upsertUser(claims);
-      done(null, user);
-    } catch (err) {
-      done(err);
-    }
-  };
-
-  const ensureStrategy = (domain) => {
-    const strategyName = `replitauth:${domain}`;
-    if (!registeredStrategies.has(strategyName)) {
-      const strategy = new Strategy({
-        name: strategyName,
-        config,
-        scope: 'openid email profile offline_access',
-        callbackURL: `https://${domain}/api/callback`
-      }, verify);
-      passport.use(strategy);
-      registeredStrategies.add(strategyName);
-    }
-    return strategyName;
-  };
-
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((user, done) => done(null, user));
 
-  app.get('/api/login', (req, res, next) => {
-    const strategyName = ensureStrategy(req.hostname);
-    passport.authenticate(strategyName, {
-      prompt: 'login consent',
-      scope: ['openid', 'email', 'profile', 'offline_access']
-    })(req, res, next);
-  });
+  if (isProduction) {
+    console.log('[Auth] Production mode - Discord OAuth only');
+    
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+      console.error('[Auth] WARNING: Discord OAuth credentials not set!');
+    }
+    
+    passport.use(new DiscordStrategy({
+      clientId: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+      callbackUrl: 'https://allfaithsonfire.org/auth/discord/callback',
+      scope: ['identify', 'email']
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        const discordId = await upsertDiscordUser(profile);
+        const user = {
+          provider: 'discord',
+          id: discordId,
+          discordId: profile.id,
+          username: profile.username,
+          globalName: profile.global_name,
+          email: profile.email,
+          avatar: profile.avatar
+        };
+        done(null, user);
+      } catch (err) {
+        done(err);
+      }
+    }));
 
-  app.get('/api/callback', (req, res, next) => {
-    const strategyName = ensureStrategy(req.hostname);
-    passport.authenticate(strategyName, {
-      successReturnToOrRedirect: '/',
-      failureRedirect: '/'
-    })(req, res, next);
-  });
+    app.get('/api/login', passport.authenticate('discord'));
+    
+    app.get('/auth/discord/callback', 
+      passport.authenticate('discord', { failureRedirect: '/' }),
+      (req, res) => res.redirect('/')
+    );
 
-  app.get('/api/logout', async (req, res) => {
-    const config = await getOidcConfig();
-    req.logout(() => {
-      const endSessionUrl = client.buildEndSessionUrl(config, {
-        client_id: process.env.REPL_ID,
-        post_logout_redirect_uri: `https://${req.hostname}`
+    app.get('/api/logout', (req, res) => {
+      req.logout(() => {
+        res.redirect('/');
       });
-      res.redirect(endSessionUrl.href);
     });
-  });
+
+  } else {
+    console.log('[Auth] Development mode - Replit OAuth');
+    
+    const config = await getOidcConfig();
+    console.log('[Auth] OIDC config loaded');
+    
+    const verify = async (tokens, done) => {
+      try {
+        const claims = tokens.claims();
+        const user = {
+          provider: 'replit',
+          id: claims.sub,
+          claims,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_at: claims.exp
+        };
+        await upsertUser(claims);
+        done(null, user);
+      } catch (err) {
+        done(err);
+      }
+    };
+
+    const ensureStrategy = (domain) => {
+      const strategyName = `replitauth:${domain}`;
+      if (!registeredStrategies.has(strategyName)) {
+        const strategy = new OidcStrategy({
+          name: strategyName,
+          config,
+          scope: 'openid email profile offline_access',
+          callbackURL: `https://${domain}/api/callback`
+        }, verify);
+        passport.use(strategy);
+        registeredStrategies.add(strategyName);
+      }
+      return strategyName;
+    };
+
+    app.get('/api/login', (req, res, next) => {
+      const strategyName = ensureStrategy(req.hostname);
+      passport.authenticate(strategyName, {
+        prompt: 'login consent',
+        scope: ['openid', 'email', 'profile', 'offline_access']
+      })(req, res, next);
+    });
+
+    app.get('/api/callback', (req, res, next) => {
+      const strategyName = ensureStrategy(req.hostname);
+      passport.authenticate(strategyName, {
+        successReturnToOrRedirect: '/',
+        failureRedirect: '/'
+      })(req, res, next);
+    });
+
+    app.get('/api/logout', async (req, res) => {
+      const oidcConfig = await getOidcConfig();
+      req.logout(() => {
+        const endSessionUrl = client.buildEndSessionUrl(oidcConfig, {
+          client_id: process.env.REPL_ID,
+          post_logout_redirect_uri: `https://${req.hostname}`
+        });
+        res.redirect(endSessionUrl.href);
+      });
+    });
+  }
 }
 
 app.use((req, res, next) => {
-  if (req.user?.claims) {
-    res.locals.user = {
-      id: req.user.claims.sub,
-      email: req.user.claims.email,
-      firstName: req.user.claims.first_name,
-      lastName: req.user.claims.last_name,
-      profileImage: req.user.claims.profile_image_url
-    };
+  if (req.user) {
+    if (req.user.provider === 'discord') {
+      const avatarUrl = req.user.avatar 
+        ? `https://cdn.discordapp.com/avatars/${req.user.discordId}/${req.user.avatar}.png`
+        : null;
+      res.locals.user = {
+        id: req.user.id,
+        email: req.user.email,
+        firstName: req.user.globalName || req.user.username,
+        lastName: null,
+        profileImage: avatarUrl
+      };
+    } else if (req.user.claims) {
+      res.locals.user = {
+        id: req.user.claims.sub,
+        email: req.user.claims.email,
+        firstName: req.user.claims.first_name,
+        lastName: req.user.claims.last_name,
+        profileImage: req.user.claims.profile_image_url
+      };
+    } else {
+      res.locals.user = { id: req.user.id };
+    }
   } else {
     res.locals.user = null;
   }
+  res.locals.isProduction = isProduction;
   next();
 });
 
@@ -265,7 +350,8 @@ app.get('/submit', (req, res) => {
 });
 
 app.post('/submit', async (req, res) => {
-  if (!req.user?.claims?.sub) {
+  const userId = req.user?.id || req.user?.claims?.sub;
+  if (!userId) {
     return res.redirect('/api/login');
   }
 
@@ -275,7 +361,7 @@ app.post('/submit', async (req, res) => {
     await pool.query(`
       INSERT INTO submissions (user_id, submission_type, book_title, chapter_title, content, notes)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [req.user.claims.sub, submission_type, book_title || null, chapter_title || null, content, notes || null]);
+    `, [userId, submission_type, book_title || null, chapter_title || null, content, notes || null]);
 
     res.render('submit', { success: true });
   } catch (err) {
@@ -291,11 +377,12 @@ function isModerator(userId) {
 }
 
 app.get('/moderate', async (req, res) => {
-  if (!req.user?.claims?.sub) {
+  const userId = req.user?.id || req.user?.claims?.sub;
+  if (!userId) {
     return res.redirect('/api/login');
   }
   
-  if (!isModerator(req.user.claims.sub)) {
+  if (!isModerator(userId)) {
     return res.status(403).send('Access denied');
   }
 
@@ -315,11 +402,12 @@ app.get('/moderate', async (req, res) => {
 });
 
 app.post('/moderate/:id/approve', async (req, res) => {
-  if (!req.user?.claims?.sub) {
+  const userId = req.user?.id || req.user?.claims?.sub;
+  if (!userId) {
     return res.redirect('/api/login');
   }
   
-  if (!isModerator(req.user.claims.sub)) {
+  if (!isModerator(userId)) {
     return res.status(403).send('Access denied');
   }
 
@@ -328,7 +416,7 @@ app.post('/moderate/:id/approve', async (req, res) => {
       UPDATE submissions 
       SET status = 'approved', reviewed_at = NOW(), reviewed_by = $1 
       WHERE id = $2
-    `, [req.user.claims.sub, req.params.id]);
+    `, [userId, req.params.id]);
     res.redirect('/moderate');
   } catch (err) {
     console.error('Approval error:', err);
@@ -337,11 +425,12 @@ app.post('/moderate/:id/approve', async (req, res) => {
 });
 
 app.post('/moderate/:id/reject', async (req, res) => {
-  if (!req.user?.claims?.sub) {
+  const userId = req.user?.id || req.user?.claims?.sub;
+  if (!userId) {
     return res.redirect('/api/login');
   }
   
-  if (!isModerator(req.user.claims.sub)) {
+  if (!isModerator(userId)) {
     return res.status(403).send('Access denied');
   }
 
@@ -350,7 +439,7 @@ app.post('/moderate/:id/reject', async (req, res) => {
       UPDATE submissions 
       SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1 
       WHERE id = $2
-    `, [req.user.claims.sub, req.params.id]);
+    `, [userId, req.params.id]);
     res.redirect('/moderate');
   } catch (err) {
     console.error('Rejection error:', err);
