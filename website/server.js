@@ -22,6 +22,11 @@ app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Simple test endpoint - no database needed
+app.get('/ping', (req, res) => {
+  res.send('pong - server is running on port ' + (process.env.PORT || 5000));
+});
+
 app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -163,9 +168,12 @@ app.use((req, res, next) => {
 });
 
 app.get('/', async (req, res) => {
+  console.log('[/] Home route hit');
   try {
+    console.log('[/] Querying books...');
     const booksResult = await pool.query('SELECT id, title FROM books ORDER BY book_number');
     const books = booksResult.rows;
+    console.log(`[/] Found ${books.length} books`);
     
     for (const book of books) {
       const chaptersResult = await pool.query(
@@ -197,10 +205,11 @@ app.get('/', async (req, res) => {
       }
     }
 
+    console.log('[/] Rendering index...');
     res.render('index', { books, chapter, verses, quote });
   } catch (err) {
-    console.error('Error:', err);
-    res.status(500).send('Server error');
+    console.error('[/] Error in home route:', err);
+    res.status(500).send('Server error: ' + err.message);
   }
 });
 
@@ -352,5 +361,10 @@ console.log('  Views:', path.join(__dirname, 'views'));
 console.log('  Public:', path.join(__dirname, 'public'));
 console.log('  PORT:', PORT);
 console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
+
+// Test database connection on startup
+pool.query('SELECT 1')
+  .then(() => console.log('  Database: connected'))
+  .catch(err => console.error('  Database: FAILED -', err.message));
 
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running at http://0.0.0.0:${PORT}`));
