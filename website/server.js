@@ -402,13 +402,22 @@ app.post('/submit', async (req, res) => {
     return res.redirect('/api/login');
   }
 
-  const { submission_type, book_title, chapter_title, content, notes } = req.body;
+  const { submission_type, book_title, chapter_title, book_id, chapter_id, content, notes } = req.body;
   
   try {
     await pool.query(`
-      INSERT INTO submissions (user_id, submission_type, book_title, chapter_title, content, notes)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [userId, submission_type, book_title || null, chapter_title || null, content, notes || null]);
+      INSERT INTO submissions (user_id, submission_type, book_title, chapter_title, book_id, chapter_id, content, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      userId, 
+      submission_type, 
+      book_title || null, 
+      chapter_title || null, 
+      book_id || null,
+      chapter_id || null,
+      content, 
+      notes || null
+    ]);
 
     res.render('submit', { success: true });
   } catch (err) {

@@ -506,8 +506,16 @@ Let your words flow naturally. The formatting will be handled with care."></text
       }
     }, 300);
 
-    bookInput.addEventListener('input', handleBookInput);
-    chapterInput.addEventListener('input', handleChapterInput);
+    bookInput.addEventListener('input', function() {
+      bookIdField.value = '';
+      selectedBookId = null;
+      handleBookInput();
+    });
+    
+    chapterInput.addEventListener('input', function() {
+      chapterIdField.value = '';
+      handleChapterInput();
+    });
 
     bookDropdown.addEventListener('click', function(e) {
       const item = e.target.closest('.autocomplete-item');
@@ -531,6 +539,7 @@ Let your words flow naturally. The formatting will be handled with care."></text
     bookSelect.addEventListener('change', function() {
       const selectedOption = bookSelect.options[bookSelect.selectedIndex];
       bookIdField.value = selectedOption.dataset.id || '';
+      bookInput.value = selectedOption.value || '';
       selectedBookId = selectedOption.dataset.id || null;
       loadChaptersDropdown(selectedBookId);
     });
@@ -538,6 +547,7 @@ Let your words flow naturally. The formatting will be handled with care."></text
     chapterSelect.addEventListener('change', function() {
       const selectedOption = chapterSelect.options[chapterSelect.selectedIndex];
       chapterIdField.value = selectedOption.dataset.id || '';
+      chapterInput.value = selectedOption.value || '';
     });
 
     submissionType.addEventListener('change', function() {
