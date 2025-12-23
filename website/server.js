@@ -345,6 +345,53 @@ app.get('/content/creed', (req, res) => {
   res.render('content/creed');
 });
 
+app.get('/api/books/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    let result;
+    if (q) {
+      result = await pool.query(
+        `SELECT id, title FROM books WHERE LOWER(title) LIKE LOWER($1) ORDER BY title LIMIT 10`,
+        [`%${q}%`]
+      );
+    } else {
+      result = await pool.query('SELECT id, title FROM books ORDER BY title LIMIT 10');
+    }
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Book search error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/chapters/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    const bookId = req.query.bookId;
+    let query, params;
+    
+    if (bookId && q) {
+      query = `SELECT c.id, c.title, b.title as book_title FROM chapters c JOIN books b ON c.book_id = b.id WHERE c.book_id = $1 AND LOWER(c.title) LIKE LOWER($2) ORDER BY c.title LIMIT 10`;
+      params = [bookId, `%${q}%`];
+    } else if (bookId) {
+      query = `SELECT c.id, c.title, b.title as book_title FROM chapters c JOIN books b ON c.book_id = b.id WHERE c.book_id = $1 ORDER BY c.title LIMIT 10`;
+      params = [bookId];
+    } else if (q) {
+      query = `SELECT c.id, c.title, b.title as book_title FROM chapters c JOIN books b ON c.book_id = b.id WHERE LOWER(c.title) LIKE LOWER($1) ORDER BY c.title LIMIT 10`;
+      params = [`%${q}%`];
+    } else {
+      query = `SELECT c.id, c.title, b.title as book_title FROM chapters c JOIN books b ON c.book_id = b.id ORDER BY c.title LIMIT 10`;
+      params = [];
+    }
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Chapter search error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/submit', (req, res) => {
   res.render('submit', { success: false });
 });

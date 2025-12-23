@@ -192,6 +192,50 @@
     .back-link:hover {
       color: #c9a227;
     }
+    .autocomplete-wrapper {
+      position: relative;
+    }
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fdfcfa;
+      border: 1px solid #c9a227;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .autocomplete-dropdown.show {
+      display: block;
+    }
+    .autocomplete-item {
+      padding: 0.75rem;
+      cursor: pointer;
+      border-bottom: 1px solid #e8e0d4;
+      transition: background 0.15s;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-item:hover, .autocomplete-item.active {
+      background: linear-gradient(180deg, #f5f0e8 0%, #ebe4d8 100%);
+    }
+    .autocomplete-item .book-hint {
+      font-size: 0.85rem;
+      color: #8b7355;
+      font-style: italic;
+    }
+    .input-wrapper {
+      display: none;
+    }
+    .input-wrapper.active {
+      display: block;
+    }
   </style>
   <link rel="stylesheet" href="/css/themes.css">
 </head>
@@ -256,14 +300,36 @@
           </select>
         </div>
 
-        <div class="form-group">
-          <label>Book Title <span class="label-hint">(existing or new)</span></label>
-          <input type="text" name="book_title" placeholder="e.g., Book of Prophets, The Book of Dawn...">
+        <div class="form-group" id="book-field-group">
+          <label>Book Title <span class="label-hint" id="book-hint">(existing or new)</span></label>
+          <input type="hidden" name="book_id" id="book_id">
+          <div class="input-wrapper active" id="book-text-wrapper">
+            <div class="autocomplete-wrapper">
+              <input type="text" name="book_title" id="book_title" placeholder="e.g., Book of Prophets, The Book of Dawn..." autocomplete="off">
+              <div class="autocomplete-dropdown" id="book-dropdown"></div>
+            </div>
+          </div>
+          <div class="input-wrapper" id="book-select-wrapper">
+            <select name="book_title_select" id="book_title_select">
+              <option value="">Select a book...</option>
+            </select>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Chapter Title <span class="label-hint">(if applicable)</span></label>
-          <input type="text" name="chapter_title" placeholder="e.g., The First Light, The Gathering...">
+        <div class="form-group" id="chapter-field-group">
+          <label>Chapter Title <span class="label-hint" id="chapter-hint">(if applicable)</span></label>
+          <input type="hidden" name="chapter_id" id="chapter_id">
+          <div class="input-wrapper active" id="chapter-text-wrapper">
+            <div class="autocomplete-wrapper">
+              <input type="text" name="chapter_title" id="chapter_title" placeholder="e.g., The First Light, The Gathering..." autocomplete="off">
+              <div class="autocomplete-dropdown" id="chapter-dropdown"></div>
+            </div>
+          </div>
+          <div class="input-wrapper" id="chapter-select-wrapper">
+            <select name="chapter_title_select" id="chapter_title_select">
+              <option value="">Select a chapter...</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -290,5 +356,221 @@ Let your words flow naturally. The formatting will be handled with care."></text
   <footer>
     &copy; All Faiths On Fire - <%= new Date().getFullYear() %>
   </footer>
+
+  <% if (user) { %>
+  <script>
+  (function() {
+    const submissionType = document.querySelector('select[name="submission_type"]');
+    const bookTextWrapper = document.getElementById('book-text-wrapper');
+    const bookSelectWrapper = document.getElementById('book-select-wrapper');
+    const chapterTextWrapper = document.getElementById('chapter-text-wrapper');
+    const chapterSelectWrapper = document.getElementById('chapter-select-wrapper');
+    const bookInput = document.getElementById('book_title');
+    const bookSelect = document.getElementById('book_title_select');
+    const chapterInput = document.getElementById('chapter_title');
+    const chapterSelect = document.getElementById('chapter_title_select');
+    const bookIdField = document.getElementById('book_id');
+    const chapterIdField = document.getElementById('chapter_id');
+    const bookDropdown = document.getElementById('book-dropdown');
+    const chapterDropdown = document.getElementById('chapter-dropdown');
+    const bookHint = document.getElementById('book-hint');
+    const chapterHint = document.getElementById('chapter-hint');
+
+    let selectedBookId = null;
+    let debounceTimer = null;
+
+    function debounce(fn, delay) {
+      return function(...args) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    function toggleMode(isEdit) {
+      if (isEdit) {
+        bookTextWrapper.classList.remove('active');
+        bookSelectWrapper.classList.add('active');
+        chapterTextWrapper.classList.remove('active');
+        chapterSelectWrapper.classList.add('active');
+        bookHint.textContent = '(select existing)';
+        chapterHint.textContent = '(select existing)';
+        loadBooksDropdown();
+      } else {
+        bookTextWrapper.classList.add('active');
+        bookSelectWrapper.classList.remove('active');
+        chapterTextWrapper.classList.add('active');
+        chapterSelectWrapper.classList.remove('active');
+        bookHint.textContent = '(existing or new)';
+        chapterHint.textContent = '(if applicable)';
+      }
+    }
+
+    async function loadBooksDropdown() {
+      try {
+        const res = await fetch('/api/books/search');
+        const books = await res.json();
+        bookSelect.innerHTML = '<option value="">Select a book...</option>';
+        books.forEach(book => {
+          const opt = document.createElement('option');
+          opt.value = book.title;
+          opt.dataset.id = book.id;
+          opt.textContent = book.title;
+          bookSelect.appendChild(opt);
+        });
+      } catch (e) {
+        console.error('Failed to load books:', e);
+      }
+    }
+
+    async function loadChaptersDropdown(bookId) {
+      try {
+        const url = bookId ? `/api/chapters/search?bookId=${bookId}` : '/api/chapters/search';
+        const res = await fetch(url);
+        const chapters = await res.json();
+        chapterSelect.innerHTML = '<option value="">Select a chapter...</option>';
+        chapters.forEach(ch => {
+          const opt = document.createElement('option');
+          opt.value = ch.title;
+          opt.dataset.id = ch.id;
+          opt.textContent = ch.title + (ch.book_title ? ` (${ch.book_title})` : '');
+          chapterSelect.appendChild(opt);
+        });
+      } catch (e) {
+        console.error('Failed to load chapters:', e);
+      }
+    }
+
+    async function fetchSuggestions(type, query, bookId) {
+      let url;
+      if (type === 'book') {
+        url = `/api/books/search?q=${encodeURIComponent(query)}`;
+      } else {
+        url = `/api/chapters/search?q=${encodeURIComponent(query)}`;
+        if (bookId) url += `&bookId=${bookId}`;
+      }
+      const res = await fetch(url);
+      return res.json();
+    }
+
+    function showSuggestions(dropdown, items, type) {
+      dropdown.innerHTML = '';
+      if (items.length === 0) {
+        dropdown.classList.remove('show');
+        return;
+      }
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.dataset.id = item.id;
+        div.dataset.title = item.title;
+        if (type === 'chapter' && item.book_title) {
+          div.innerHTML = `${item.title} <span class="book-hint">(${item.book_title})</span>`;
+        } else {
+          div.textContent = item.title;
+        }
+        dropdown.appendChild(div);
+      });
+      dropdown.classList.add('show');
+    }
+
+    function hideDropdowns() {
+      bookDropdown.classList.remove('show');
+      chapterDropdown.classList.remove('show');
+    }
+
+    const handleBookInput = debounce(async function() {
+      const query = bookInput.value.trim();
+      if (query.length < 1) {
+        hideDropdowns();
+        return;
+      }
+      try {
+        const items = await fetchSuggestions('book', query);
+        showSuggestions(bookDropdown, items, 'book');
+      } catch (e) {
+        console.error('Book search error:', e);
+      }
+    }, 300);
+
+    const handleChapterInput = debounce(async function() {
+      const query = chapterInput.value.trim();
+      if (query.length < 1) {
+        hideDropdowns();
+        return;
+      }
+      try {
+        const items = await fetchSuggestions('chapter', query, selectedBookId);
+        showSuggestions(chapterDropdown, items, 'chapter');
+      } catch (e) {
+        console.error('Chapter search error:', e);
+      }
+    }, 300);
+
+    bookInput.addEventListener('input', handleBookInput);
+    chapterInput.addEventListener('input', handleChapterInput);
+
+    bookDropdown.addEventListener('click', function(e) {
+      const item = e.target.closest('.autocomplete-item');
+      if (item) {
+        bookInput.value = item.dataset.title;
+        bookIdField.value = item.dataset.id;
+        selectedBookId = item.dataset.id;
+        hideDropdowns();
+      }
+    });
+
+    chapterDropdown.addEventListener('click', function(e) {
+      const item = e.target.closest('.autocomplete-item');
+      if (item) {
+        chapterInput.value = item.dataset.title;
+        chapterIdField.value = item.dataset.id;
+        hideDropdowns();
+      }
+    });
+
+    bookSelect.addEventListener('change', function() {
+      const selectedOption = bookSelect.options[bookSelect.selectedIndex];
+      bookIdField.value = selectedOption.dataset.id || '';
+      selectedBookId = selectedOption.dataset.id || null;
+      loadChaptersDropdown(selectedBookId);
+    });
+
+    chapterSelect.addEventListener('change', function() {
+      const selectedOption = chapterSelect.options[chapterSelect.selectedIndex];
+      chapterIdField.value = selectedOption.dataset.id || '';
+    });
+
+    submissionType.addEventListener('change', function() {
+      const isEdit = this.value === 'edit';
+      toggleMode(isEdit);
+      bookIdField.value = '';
+      chapterIdField.value = '';
+      selectedBookId = null;
+      bookInput.value = '';
+      chapterInput.value = '';
+      bookSelect.value = '';
+      chapterSelect.innerHTML = '<option value="">Select a chapter...</option>';
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.autocomplete-wrapper')) {
+        hideDropdowns();
+      }
+    });
+
+    bookInput.addEventListener('focus', function() {
+      if (bookInput.value.trim().length > 0) {
+        handleBookInput();
+      }
+    });
+
+    chapterInput.addEventListener('focus', function() {
+      if (chapterInput.value.trim().length > 0) {
+        handleChapterInput();
+      }
+    });
+  })();
+  </script>
+  <% } %>
 </body>
 </html>
