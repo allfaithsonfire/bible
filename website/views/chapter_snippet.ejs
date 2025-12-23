@@ -1,5 +1,5 @@
 <h2><%= chapter.chapter_title %></h2>
-<h4><em>from <%= chapter.book_title %> — <%= chapter.created_at %></em></h4>
+<h4><em>from <%= chapter.book_title %> — <%= new Date(chapter.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %></em></h4>
 <hr />
 <% verses.forEach(v => { %>
   <p><strong><%= v.verse_number %></strong> <%= v.text %></p>
