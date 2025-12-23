@@ -86,7 +86,9 @@ async function upsertUser(claims) {
 }
 
 async function setupAuth() {
+  console.log('[Auth] Setting up authentication...');
   const config = await getOidcConfig();
+  console.log('[Auth] OIDC config loaded');
   
   const verify = async (tokens, done) => {
     try {
@@ -149,8 +151,6 @@ async function setupAuth() {
     });
   });
 }
-
-setupAuth().catch(err => console.error('Auth setup failed:', err));
 
 app.use((req, res, next) => {
   if (req.user?.claims) {
@@ -355,24 +355,34 @@ app.post('/moderate/:id/reject', async (req, res) => {
   }
 });
 
-// Catch-all 404 handler
-app.use((req, res) => {
-  console.log(`[404] No route matched: ${req.method} ${req.path}`);
-  res.status(404).send('Page not found');
-});
-
 const PORT = process.env.PORT || 5000;
 
-// Log startup info
-console.log('Starting server...');
-console.log('  Views:', path.join(__dirname, 'views'));
-console.log('  Public:', path.join(__dirname, 'public'));
-console.log('  PORT:', PORT);
-console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
+async function startServer() {
+  console.log('Starting server...');
+  console.log('  Views:', path.join(__dirname, 'views'));
+  console.log('  Public:', path.join(__dirname, 'public'));
+  console.log('  PORT:', PORT);
+  console.log('  DATABASE_URL:', process.env.DATABASE_URL ? 'set' : 'NOT SET');
 
-// Test database connection on startup
-pool.query('SELECT 1')
-  .then(() => console.log('  Database: connected'))
-  .catch(err => console.error('  Database: FAILED -', err.message));
+  try {
+    await pool.query('SELECT 1');
+    console.log('  Database: connected');
+  } catch (err) {
+    console.error('  Database: FAILED -', err.message);
+  }
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running at http://0.0.0.0:${PORT}`));
+  await setupAuth();
+  console.log('  Auth: configured');
+
+  app.use((req, res) => {
+    console.log(`[404] No route matched: ${req.method} ${req.path}`);
+    res.status(404).send('Page not found');
+  });
+
+  app.listen(PORT, '0.0.0.0', () => console.log(`Server running at http://0.0.0.0:${PORT}`));
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
