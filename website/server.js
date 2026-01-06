@@ -89,36 +89,83 @@ async function getUserRoles(userId) {
   return { isAdmin: false, isModerator: false };
 }
 
-async function upsertUser(claims) {
+async function findOrCreateUserWithIdentity(provider, providerUserId, email, displayName, avatarUrl) {
+  const identityResult = await pool.query(
+    'SELECT user_id FROM user_identities WHERE provider = $1 AND provider_user_id = $2',
+    [provider, providerUserId]
+  );
+  
+  if (identityResult.rows.length > 0) {
+    const userId = identityResult.rows[0].user_id;
+    await pool.query(
+      'UPDATE user_identities SET last_login_at = NOW(), display_name = $1, avatar_url = $2 WHERE provider = $3 AND provider_user_id = $4',
+      [displayName, avatarUrl, provider, providerUserId]
+    );
+    await pool.query('UPDATE users SET updated_at = NOW() WHERE id = $1', [userId]);
+    console.log(`[Auth] Found existing identity for ${provider}:${providerUserId} -> user ${userId}`);
+    return userId;
+  }
+  
+  let userId = null;
+  if (email) {
+    const emailResult = await pool.query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (emailResult.rows.length > 0) {
+      userId = emailResult.rows[0].id;
+      console.log(`[Auth] Linking ${provider} identity to existing user ${userId} via email ${email}`);
+    }
+  }
+  
+  if (!userId) {
+    userId = `${provider}:${providerUserId}`;
+    await pool.query(`
+      INSERT INTO users (id, email, first_name, profile_image_url, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        email = COALESCE(EXCLUDED.email, users.email),
+        first_name = COALESCE(EXCLUDED.first_name, users.first_name),
+        profile_image_url = COALESCE(EXCLUDED.profile_image_url, users.profile_image_url),
+        updated_at = NOW()
+    `, [userId, email, displayName, avatarUrl]);
+    console.log(`[Auth] Created new user ${userId} for ${provider}`);
+  }
+  
   await pool.query(`
-    INSERT INTO users (id, email, first_name, last_name, profile_image_url, updated_at)
-    VALUES ($1, $2, $3, $4, $5, NOW())
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      first_name = EXCLUDED.first_name,
-      last_name = EXCLUDED.last_name,
-      profile_image_url = EXCLUDED.profile_image_url,
-      updated_at = NOW()
-  `, [claims.sub, claims.email, claims.first_name, claims.last_name, claims.profile_image_url]);
+    INSERT INTO user_identities (user_id, provider, provider_user_id, email, display_name, avatar_url, last_login_at)
+    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+      last_login_at = NOW(),
+      display_name = EXCLUDED.display_name,
+      avatar_url = EXCLUDED.avatar_url
+  `, [userId, provider, providerUserId, email, displayName, avatarUrl]);
+  
+  return userId;
+}
+
+async function upsertUser(claims) {
+  return findOrCreateUserWithIdentity(
+    'replit',
+    claims.sub,
+    claims.email,
+    `${claims.first_name || ''} ${claims.last_name || ''}`.trim() || claims.email,
+    claims.profile_image_url
+  );
 }
 
 async function upsertDiscordUser(profile) {
-  const discordId = `discord:${profile.id}`;
   const avatarUrl = profile.avatar 
     ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
     : null;
   
-  await pool.query(`
-    INSERT INTO users (id, email, first_name, last_name, profile_image_url, updated_at)
-    VALUES ($1, $2, $3, $4, $5, NOW())
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      first_name = EXCLUDED.first_name,
-      profile_image_url = EXCLUDED.profile_image_url,
-      updated_at = NOW()
-  `, [discordId, profile.email || null, profile.global_name || profile.username, null, avatarUrl]);
-  
-  return discordId;
+  return findOrCreateUserWithIdentity(
+    'discord',
+    profile.id,
+    profile.email,
+    profile.global_name || profile.username,
+    avatarUrl
+  );
 }
 
 async function setupAuth() {
@@ -179,15 +226,15 @@ async function setupAuth() {
     const verify = async (tokens, done) => {
       try {
         const claims = tokens.claims();
+        const userId = await upsertUser(claims);
         const user = {
           provider: 'replit',
-          id: claims.sub,
+          id: userId,
           claims,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
           expires_at: claims.exp
         };
-        await upsertUser(claims);
         done(null, user);
       } catch (err) {
         done(err);
