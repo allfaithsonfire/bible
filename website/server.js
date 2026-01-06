@@ -593,17 +593,227 @@ app.get('/moderate', requireRole(['admin', 'moderator']), async (req, res) => {
 });
 
 app.post('/moderate/:id/approve', requireRole(['admin', 'moderator']), async (req, res) => {
-  const userId = req.user?.id || req.user?.claims?.sub;
+  const reviewerId = req.user?.id || req.user?.claims?.sub;
+  const submissionId = parseInt(req.params.id, 10);
+  
+  const client = await pool.connect();
   try {
-    await pool.query(`
+    await client.query('BEGIN');
+    
+    // 1. Get full submission data
+    const subResult = await client.query(`
+      SELECT s.*, u.first_name, ui.display_name as discord_username
+      FROM submissions s
+      LEFT JOIN users u ON s.user_id = u.id
+      LEFT JOIN user_identities ui ON s.user_id = ui.user_id AND ui.provider = 'discord'
+      WHERE s.id = $1
+    `, [submissionId]);
+    
+    if (subResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).send('Submission not found');
+    }
+    
+    const submission = subResult.rows[0];
+    const { submission_type, book_title, book_id, chapter_title, chapter_id, verse_number, content, notes, user_id } = submission;
+    
+    // Determine author name from submission
+    const authorName = submission.discord_username || submission.first_name || 'Anonymous';
+    
+    let entityType = null;
+    let entityId = null;
+    
+    // 2. Handle based on submission_type
+    if (submission_type === 'verse') {
+      // For verse: find or create book/chapter, then insert verse
+      let finalBookId = book_id;
+      let finalChapterId = chapter_id;
+      
+      // Find or create book if needed
+      if (!finalBookId && book_title) {
+        const existingBook = await client.query('SELECT id FROM books WHERE LOWER(title) = LOWER($1)', [book_title]);
+        if (existingBook.rows.length > 0) {
+          finalBookId = existingBook.rows[0].id;
+        } else {
+          const maxBookNum = await client.query('SELECT COALESCE(MAX(book_number), 0) + 1 as next_num FROM books');
+          const newBook = await client.query(
+            'INSERT INTO books (title, is_dynamic, book_number) VALUES ($1, 0, $2) RETURNING id',
+            [book_title, maxBookNum.rows[0].next_num]
+          );
+          finalBookId = newBook.rows[0].id;
+        }
+      }
+      
+      // Find or create chapter if needed
+      if (!finalChapterId && chapter_title && finalBookId) {
+        const existingChapter = await client.query(
+          'SELECT id FROM chapters WHERE book_id = $1 AND LOWER(title) = LOWER($2)',
+          [finalBookId, chapter_title]
+        );
+        if (existingChapter.rows.length > 0) {
+          finalChapterId = existingChapter.rows[0].id;
+        } else {
+          const filename = chapter_title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+          const maxChapNum = await client.query('SELECT COALESCE(MAX(chapter_number), 0) + 1 as next_num FROM chapters WHERE book_id = $1', [finalBookId]);
+          const newChapter = await client.query(
+            'INSERT INTO chapters (book_id, title, filename, created_at, chapter_number) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [finalBookId, chapter_title, filename + '_' + Date.now(), Math.floor(Date.now() / 1000), maxChapNum.rows[0].next_num]
+          );
+          finalChapterId = newChapter.rows[0].id;
+        }
+      }
+      
+      if (!finalChapterId) {
+        throw new Error('Cannot create verse: no chapter specified or could not create chapter');
+      }
+      
+      // Determine verse number
+      let finalVerseNumber = verse_number;
+      if (!finalVerseNumber) {
+        const maxVerse = await client.query('SELECT COALESCE(MAX(verse_number), 0) + 1 as next_num FROM verses WHERE chapter_id = $1', [finalChapterId]);
+        finalVerseNumber = maxVerse.rows[0].next_num;
+      }
+      
+      // Insert verse
+      const newVerse = await client.query(
+        'INSERT INTO verses (chapter_id, verse_number, text) VALUES ($1, $2, $3) RETURNING id',
+        [finalChapterId, finalVerseNumber, content]
+      );
+      entityType = 'verse';
+      entityId = newVerse.rows[0].id;
+      
+    } else if (submission_type === 'chapter') {
+      // For chapter: find or create book, create chapter, parse and insert verses
+      let finalBookId = book_id;
+      
+      // Find or create book if needed
+      if (!finalBookId && book_title) {
+        const existingBook = await client.query('SELECT id FROM books WHERE LOWER(title) = LOWER($1)', [book_title]);
+        if (existingBook.rows.length > 0) {
+          finalBookId = existingBook.rows[0].id;
+        } else {
+          const maxBookNum = await client.query('SELECT COALESCE(MAX(book_number), 0) + 1 as next_num FROM books');
+          const newBook = await client.query(
+            'INSERT INTO books (title, is_dynamic, book_number) VALUES ($1, 0, $2) RETURNING id',
+            [book_title, maxBookNum.rows[0].next_num]
+          );
+          finalBookId = newBook.rows[0].id;
+        }
+      }
+      
+      if (!finalBookId) {
+        throw new Error('Cannot create chapter: no book specified or could not create book');
+      }
+      
+      // Create chapter
+      const chapterTitle = chapter_title || 'Untitled Chapter';
+      const filename = chapterTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now();
+      const maxChapNum = await client.query('SELECT COALESCE(MAX(chapter_number), 0) + 1 as next_num FROM chapters WHERE book_id = $1', [finalBookId]);
+      
+      const newChapter = await client.query(
+        'INSERT INTO chapters (book_id, title, filename, created_at, chapter_number) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [finalBookId, chapterTitle, filename, Math.floor(Date.now() / 1000), maxChapNum.rows[0].next_num]
+      );
+      const newChapterId = newChapter.rows[0].id;
+      
+      // Parse content to extract verses (split by newlines or numbered patterns like "1." or "1:")
+      const lines = content.split(/\n/).filter(line => line.trim());
+      let verseNum = 1;
+      
+      for (const line of lines) {
+        let verseText = line.trim();
+        // Try to extract verse number from patterns like "1." or "1:" or "1)"
+        const numberedMatch = verseText.match(/^(\d+)[.:)\s]+(.+)$/);
+        if (numberedMatch) {
+          verseNum = parseInt(numberedMatch[1], 10);
+          verseText = numberedMatch[2].trim();
+        }
+        
+        if (verseText) {
+          await client.query(
+            'INSERT INTO verses (chapter_id, verse_number, text) VALUES ($1, $2, $3)',
+            [newChapterId, verseNum, verseText]
+          );
+          verseNum++;
+        }
+      }
+      
+      entityType = 'chapter';
+      entityId = newChapterId;
+      
+    } else if (submission_type === 'wisdom' || submission_type === 'quote') {
+      // For wisdom/quote: insert into quotes table
+      const newQuote = await client.query(
+        'INSERT INTO quotes (text, author, source, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
+        [content, authorName, notes || null, Math.floor(Date.now() / 1000)]
+      );
+      entityType = 'quote';
+      entityId = newQuote.rows[0].id;
+      
+    } else {
+      throw new Error(`Unknown submission type: ${submission_type}`);
+    }
+    
+    // 4. Track authorship - find or create author
+    let authorId;
+    const existingAuthor = await client.query(
+      'SELECT id FROM authors WHERE name = $1',
+      [authorName]
+    );
+    if (existingAuthor.rows.length > 0) {
+      authorId = existingAuthor.rows[0].id;
+    } else {
+      const newAuthor = await client.query(
+        'INSERT INTO authors (name, contact, role) VALUES ($1, $2, $3) RETURNING id',
+        [authorName, user_id || null, 'contributor']
+      );
+      authorId = newAuthor.rows[0].id;
+    }
+    
+    // Create revision record
+    const revision = await client.query(
+      'INSERT INTO revisions (entity_type, entity_id, revision_ts, author_id, note) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [entityType, entityId, Math.floor(Date.now() / 1000), authorId, `Approved submission #${submissionId}`]
+    );
+    
+    // Link revision to author in revision_authors
+    await client.query(
+      'INSERT INTO revision_authors (revision_id, author_id) VALUES ($1, $2)',
+      [revision.rows[0].id, authorId]
+    );
+    
+    // 5. Update submission status to 'published'
+    await client.query(`
       UPDATE submissions 
-      SET status = 'approved', reviewed_at = NOW(), reviewed_by = $1 
+      SET status = 'published', reviewed_at = NOW(), reviewed_by = $1 
       WHERE id = $2
-    `, [userId, req.params.id]);
+    `, [reviewerId, submissionId]);
+    
+    await client.query('COMMIT');
+    console.log(`[Approval] Successfully published submission #${submissionId} as ${entityType} #${entityId}`);
     res.redirect('/moderate');
+    
   } catch (err) {
-    console.error('Approval error:', err);
-    res.status(500).send('Server error');
+    await client.query('ROLLBACK');
+    console.error('Approval pipeline error:', err);
+    
+    // 6. Set status to 'error' with error message in notes
+    try {
+      await pool.query(`
+        UPDATE submissions 
+        SET status = 'error', 
+            reviewed_at = NOW(), 
+            reviewed_by = $1,
+            notes = COALESCE(notes || E'\\n', '') || $2
+        WHERE id = $3
+      `, [reviewerId, `Error: ${err.message}`, submissionId]);
+    } catch (updateErr) {
+      console.error('Failed to update submission status to error:', updateErr);
+    }
+    
+    res.status(500).send('Approval failed: ' + err.message);
+  } finally {
+    client.release();
   }
 });
 
