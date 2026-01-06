@@ -227,6 +227,29 @@
     #theme-menu button:hover {
       background: #3a3a5e;
     }
+    .admin-delete-btn {
+      background: transparent;
+      border: none;
+      color: #c62828;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0 4px;
+      margin-left: 8px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .admin-delete-btn:hover {
+      opacity: 1;
+    }
+    .verse-delete {
+      font-size: 0.8rem;
+      vertical-align: middle;
+    }
+    .book-delete {
+      font-size: 0.7rem;
+      float: right;
+      margin-top: 2px;
+    }
   </style>
   <link rel="stylesheet" href="/css/themes.css">
 </head>
@@ -267,6 +290,9 @@
           <div class="book-wrapper">
             <div class="book-toggle" data-target="book-<%= book.id %>">
               <%= book.title %>
+              <% if (user && user.isAdmin) { %>
+                <button class="admin-delete-btn book-delete" onclick="event.stopPropagation(); deleteBook(<%= book.id %>, '<%= book.title.replace(/'/g, "\\'") %>')" title="Delete Book">×</button>
+              <% } %>
             </div>
             <div class="chapter-list" id="book-<%= book.id %>">
               <% book.chapters.forEach(ch => { %>
@@ -285,9 +311,19 @@
         <div class="inner-content">
           <% if (chapter) { %>
             <div class="chapter">
-              <h2><%= chapter.title %></h2>
+              <h2>
+                <%= chapter.title %>
+                <% if (user && user.isAdmin) { %>
+                  <button class="admin-delete-btn" onclick="deleteChapter(<%= chapter.id %>, '<%= chapter.title.replace(/'/g, "\\'") %>')" title="Delete Chapter">🗑️</button>
+                <% } %>
+              </h2>
               <% verses.forEach(v => { %>
-                <p><strong><%= v.verse_number %></strong> <%= v.text %></p>
+                <p>
+                  <strong><%= v.verse_number %></strong> <%= v.text %>
+                  <% if (user && user.isAdmin) { %>
+                    <button class="admin-delete-btn verse-delete" onclick="deleteVerse(<%= v.id %>, <%= v.verse_number %>)" title="Delete Verse">×</button>
+                  <% } %>
+                </p>
               <% }) %>
             </div>
           <% } else { %>
@@ -311,15 +347,15 @@
       &copy; All Faiths On Fire - <%= new Date().getFullYear() %>
     </footer>
   </div>
-<div id="theme-toggle" style="position:fixed;bottom:20px;right:20px;z-index:1000;">
-  <button style="font-size: 1.5rem; padding: 0.6rem 1rem;" onclick="toggleThemeMenu()">☼</button>
-  <div id="theme-menu" style="display:none;position:absolute;bottom:50px;right:0;background:#222;color:#fff;padding:0.75rem;border-radius:0.5rem;width:180px;">
-    <button onclick="setTheme('light')" style="width:100%;margin-bottom:4px;">☀️ Light</button>
-    <button onclick="setTheme('dark')" style="width:100%;margin-bottom:4px;">🌑 Dark</button>
-    <button onclick="setTheme('warm')" style="width:100%;margin-bottom:4px;">🔥 Warm</button>
-    <button onclick="setTheme('cool')" style="width:100%;">❄️ Cool</button>
-    <div style="margin-top:8px;">
-      <label><input type="checkbox" id="twoColToggle" onchange="toggleColumns()"> 2 Columns</label>
+<div id="theme-toggle" style="position:fixed;top:80px;right:20px;z-index:1000;">
+  <button style="font-size:1.2rem;padding:0.5rem 0.75rem;background:#1a1a2e;color:#c9a227;border:2px solid #c9a227;border-radius:6px;cursor:pointer;" onclick="toggleThemeMenu()">☼</button>
+  <div id="theme-menu" style="display:none;position:absolute;top:45px;right:0;background:#1a1a2e;border:1px solid #c9a227;padding:0.75rem;border-radius:8px;width:160px;">
+    <button onclick="setTheme('light')">☀️ Light</button>
+    <button onclick="setTheme('dark')">🌑 Dark</button>
+    <button onclick="setTheme('warm')">🔥 Warm</button>
+    <button onclick="setTheme('cool')">❄️ Cool</button>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #c9a227;">
+      <label style="color:#f0e6d3;font-size:0.9rem;cursor:pointer;"><input type="checkbox" id="twoColToggle" onchange="toggleColumns()" style="margin-right:6px;"> 2 Columns</label>
     </div>
   </div>
 </div>
@@ -426,6 +462,36 @@ function goChapter(direction) {
     const filename = new URL(next.href).searchParams.get('chapter');
     if (filename) loadChapter(filename);
   }
+}
+
+async function deleteVerse(verseId, verseNum) {
+  if (!confirm('Delete verse ' + verseNum + '? This cannot be undone.')) return;
+  try {
+    const res = await fetch('/api/admin/verse/' + verseId, { method: 'DELETE' });
+    if (res.ok) location.reload();
+    else alert('Failed to delete verse: ' + (await res.text()));
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteChapter(chapterId, chapterTitle) {
+  if (!confirm('Delete chapter "' + chapterTitle + '" and all its verses? This cannot be undone.')) return;
+  try {
+    const res = await fetch('/api/admin/chapter/' + chapterId, { method: 'DELETE' });
+    if (res.ok) location.href = '/';
+    else alert('Failed to delete chapter: ' + (await res.text()));
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteBook(bookId, bookTitle) {
+  if (!confirm('DELETE BOOK "' + bookTitle + '" and ALL its chapters and verses? This is permanent!')) return;
+  if (!confirm('Are you absolutely sure? Type "delete" in the next prompt to confirm.')) return;
+  const typed = prompt('Type "delete" to confirm deletion of "' + bookTitle + '":');
+  if (typed !== 'delete') { alert('Deletion cancelled.'); return; }
+  try {
+    const res = await fetch('/api/admin/book/' + bookId, { method: 'DELETE' });
+    if (res.ok) location.reload();
+    else alert('Failed to delete book: ' + (await res.text()));
+  } catch(e) { alert('Error: ' + e.message); }
 }
 </script>
 </body>

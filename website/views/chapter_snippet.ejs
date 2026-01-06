@@ -1,7 +1,17 @@
-<h2><%= chapter.chapter_title %></h2>
-<h4><em>from <%= chapter.book_title %> — <%= new Date(chapter.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %></em></h4>
+<h2>
+  <%= chapter.chapter_title %>
+  <% if (user && user.isAdmin) { %>
+    <button class="admin-delete-btn" onclick="deleteChapter(<%= chapter.id %>, '<%= chapter.chapter_title.replace(/'/g, "\\'") %>')" title="Delete Chapter">🗑️</button>
+  <% } %>
+</h2>
+<h4><em>from <%= chapter.book_title %> — <%= new Date(chapter.created_at * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %></em></h4>
 <hr />
 <% verses.forEach(v => { %>
-  <p><strong><%= v.verse_number %></strong> <%= v.text %></p>
+  <p>
+    <strong><%= v.verse_number %></strong> <%= v.text %>
+    <% if (user && user.isAdmin) { %>
+      <button class="admin-delete-btn verse-delete" onclick="deleteVerse(<%= v.id %>, <%= v.verse_number %>)" title="Delete Verse">×</button>
+    <% } %>
+  </p>
 <% }) %>
 <hr />

@@ -409,7 +409,7 @@ app.get('/', async (req, res) => {
       chapter = chapterResult.rows[0] || null;
       if (chapter) {
         const versesResult = await pool.query(
-          'SELECT verse_number, text FROM verses WHERE chapter_id = $1 ORDER BY verse_number ASC',
+          'SELECT id, verse_number, text FROM verses WHERE chapter_id = $1 ORDER BY verse_number ASC',
           [chapter.id]
         );
         verses = versesResult.rows;
@@ -447,13 +447,13 @@ app.get('/chapter/:filename', async (req, res) => {
     if (!chapter) return res.status(404).send("Not found");
 
     const versesResult = await pool.query(`
-      SELECT verse_number, text
+      SELECT id, verse_number, text
       FROM verses
       WHERE chapter_id = $1
       ORDER BY verse_number ASC
     `, [chapter.id]);
 
-    res.render('chapter_snippet', { chapter, verses: versesResult.rows });
+    res.render('chapter_snippet', { chapter, verses: versesResult.rows, user: res.locals.user });
   } catch (err) {
     console.error('Error:', err);
     res.status(500).send('Server error');
@@ -838,6 +838,81 @@ app.post('/moderate/:id/reject', requireRole(['admin', 'moderator']), async (req
   } catch (err) {
     console.error('Rejection error:', err);
     res.status(500).send('Server error');
+  }
+});
+
+app.delete('/api/admin/verse/:id', requireRole(['admin']), async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM verses WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).send('Verse not found');
+    console.log(`[Admin] Deleted verse #${req.params.id}`);
+    res.send('OK');
+  } catch (err) {
+    console.error('Delete verse error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.delete('/api/admin/chapter/:id', requireRole(['admin']), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM verses WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM chapter_morals WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM chapter_consequences WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM chapter_redemptions WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM chapter_tags WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM chapter_links WHERE chapter_id = $1', [req.params.id]);
+    await client.query('DELETE FROM derived_books WHERE chapter_id = $1', [req.params.id]);
+    const result = await client.query('DELETE FROM chapters WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).send('Chapter not found');
+    }
+    await client.query('COMMIT');
+    console.log(`[Admin] Deleted chapter #${req.params.id} and all associated data`);
+    res.send('OK');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delete chapter error:', err);
+    res.status(500).send('Server error');
+  } finally {
+    client.release();
+  }
+});
+
+app.delete('/api/admin/book/:id', requireRole(['admin']), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const chapters = await client.query('SELECT id FROM chapters WHERE book_id = $1', [req.params.id]);
+    for (const ch of chapters.rows) {
+      await client.query('DELETE FROM verses WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM chapter_morals WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM chapter_consequences WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM chapter_redemptions WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM chapter_tags WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM chapter_links WHERE chapter_id = $1', [ch.id]);
+      await client.query('DELETE FROM derived_books WHERE chapter_id = $1', [ch.id]);
+    }
+    await client.query('DELETE FROM chapters WHERE book_id = $1', [req.params.id]);
+    await client.query('DELETE FROM derived_books WHERE book_id = $1', [req.params.id]);
+    await client.query('DELETE FROM featured_starts WHERE book_id = $1', [req.params.id]);
+    await client.query('DELETE FROM book_rules WHERE book_id = $1', [req.params.id]);
+    const result = await client.query('DELETE FROM books WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).send('Book not found');
+    }
+    await client.query('COMMIT');
+    console.log(`[Admin] Deleted book #${req.params.id} and all associated content`);
+    res.send('OK');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delete book error:', err);
+    res.status(500).send('Server error');
+  } finally {
+    client.release();
   }
 });
 
