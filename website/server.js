@@ -75,6 +75,20 @@ async function getOidcConfig() {
   return oidcConfig;
 }
 
+async function getUserRoles(userId) {
+  const result = await pool.query(
+    'SELECT is_admin, is_moderator FROM users WHERE id = $1',
+    [userId]
+  );
+  if (result.rows.length > 0) {
+    return {
+      isAdmin: result.rows[0].is_admin || false,
+      isModerator: result.rows[0].is_moderator || false
+    };
+  }
+  return { isAdmin: false, isModerator: false };
+}
+
 async function upsertUser(claims) {
   await pool.query(`
     INSERT INTO users (id, email, first_name, last_name, profile_image_url, updated_at)
@@ -224,36 +238,98 @@ async function setupAuth() {
   }
 }
 
-app.use((req, res, next) => {
-  if (req.user) {
-    if (req.user.provider === 'discord') {
-      const avatarUrl = req.user.avatar 
-        ? `https://cdn.discordapp.com/avatars/${req.user.discordId}/${req.user.avatar}.png`
-        : null;
-      res.locals.user = {
-        id: req.user.id,
-        email: req.user.email,
-        firstName: req.user.globalName || req.user.username,
-        lastName: null,
-        profileImage: avatarUrl
-      };
-    } else if (req.user.claims) {
-      res.locals.user = {
-        id: req.user.claims.sub,
-        email: req.user.claims.email,
-        firstName: req.user.claims.first_name,
-        lastName: req.user.claims.last_name,
-        profileImage: req.user.claims.profile_image_url
-      };
+app.use(async (req, res, next) => {
+  try {
+    if (req.user) {
+      const userId = req.user.id || req.user.claims?.sub;
+      let roles = { isAdmin: false, isModerator: false };
+      try {
+        roles = await getUserRoles(userId);
+      } catch (dbErr) {
+        console.error('[Auth] Failed to fetch user roles:', dbErr.message);
+      }
+      
+      if (req.user.provider === 'discord') {
+        const avatarUrl = req.user.avatar 
+          ? `https://cdn.discordapp.com/avatars/${req.user.discordId}/${req.user.avatar}.png`
+          : null;
+        res.locals.user = {
+          id: req.user.id,
+          email: req.user.email,
+          firstName: req.user.globalName || req.user.username,
+          lastName: null,
+          profileImage: avatarUrl,
+          isAdmin: roles.isAdmin,
+          isModerator: roles.isModerator
+        };
+      } else if (req.user.claims) {
+        res.locals.user = {
+          id: req.user.claims.sub,
+          email: req.user.claims.email,
+          firstName: req.user.claims.first_name,
+          lastName: req.user.claims.last_name,
+          profileImage: req.user.claims.profile_image_url,
+          isAdmin: roles.isAdmin,
+          isModerator: roles.isModerator
+        };
+      } else {
+        res.locals.user = { id: req.user.id, isAdmin: roles.isAdmin, isModerator: roles.isModerator };
+      }
     } else {
-      res.locals.user = { id: req.user.id };
+      res.locals.user = null;
     }
-  } else {
-    res.locals.user = null;
+    res.locals.isProduction = isProduction;
+    next();
+  } catch (err) {
+    console.error('[Auth] Middleware error:', err.message);
+    next(err);
   }
-  res.locals.isProduction = isProduction;
-  next();
 });
+
+function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.redirect('/api/login');
+  }
+  next();
+}
+
+function requireRole(roles) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.redirect('/api/login');
+      }
+      const userId = req.user.id || req.user.claims?.sub;
+      let userRoles = { isAdmin: false, isModerator: false };
+      try {
+        userRoles = await getUserRoles(userId);
+      } catch (dbErr) {
+        console.error('[Auth] Failed to fetch roles for access check:', dbErr.message);
+        return res.status(500).render('error', {
+          title: 'Server Error',
+          message: 'Unable to verify permissions. Please try again.'
+        });
+      }
+      
+      const hasRole = roles.some(role => {
+        if (role === 'admin') return userRoles.isAdmin;
+        if (role === 'moderator') return userRoles.isModerator;
+        return false;
+      });
+      
+      if (!hasRole) {
+        return res.status(403).render('error', { 
+          title: 'Access Denied',
+          message: 'You do not have permission to access this page.'
+        });
+      }
+      next();
+    } catch (err) {
+      console.error('[Auth] requireRole error:', err.message);
+      next(err);
+    }
+  };
+}
 
 app.get('/', async (req, res) => {
   console.log('[/] Home route hit');
@@ -426,22 +502,34 @@ app.post('/submit', async (req, res) => {
   }
 });
 
-const MODERATORS = (process.env.MODERATOR_IDS || '').split(',').filter(Boolean);
-
-function isModerator(userId) {
-  return MODERATORS.length === 0 || MODERATORS.includes(userId);
-}
-
-app.get('/moderate', async (req, res) => {
-  const userId = req.user?.id || req.user?.claims?.sub;
-  if (!userId) {
-    return res.redirect('/api/login');
+app.get('/mod', requireRole(['admin', 'moderator']), async (req, res) => {
+  try {
+    const pendingCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'pending'");
+    const approvedCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'approved'");
+    const rejectedCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'rejected'");
+    const recentSubmissions = await pool.query(`
+      SELECT s.*, u.first_name, u.email 
+      FROM submissions s 
+      LEFT JOIN users u ON s.user_id = u.id 
+      ORDER BY s.created_at DESC 
+      LIMIT 10
+    `);
+    
+    res.render('mod', {
+      stats: {
+        pending: parseInt(pendingCount.rows[0].count),
+        approved: parseInt(approvedCount.rows[0].count),
+        rejected: parseInt(rejectedCount.rows[0].count)
+      },
+      recentSubmissions: recentSubmissions.rows
+    });
+  } catch (err) {
+    console.error('Mod panel error:', err);
+    res.status(500).send('Server error');
   }
-  
-  if (!isModerator(userId)) {
-    return res.status(403).send('Access denied');
-  }
+});
 
+app.get('/moderate', requireRole(['admin', 'moderator']), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT s.*, u.first_name, u.email 
@@ -457,16 +545,8 @@ app.get('/moderate', async (req, res) => {
   }
 });
 
-app.post('/moderate/:id/approve', async (req, res) => {
+app.post('/moderate/:id/approve', requireRole(['admin', 'moderator']), async (req, res) => {
   const userId = req.user?.id || req.user?.claims?.sub;
-  if (!userId) {
-    return res.redirect('/api/login');
-  }
-  
-  if (!isModerator(userId)) {
-    return res.status(403).send('Access denied');
-  }
-
   try {
     await pool.query(`
       UPDATE submissions 
@@ -480,16 +560,8 @@ app.post('/moderate/:id/approve', async (req, res) => {
   }
 });
 
-app.post('/moderate/:id/reject', async (req, res) => {
+app.post('/moderate/:id/reject', requireRole(['admin', 'moderator']), async (req, res) => {
   const userId = req.user?.id || req.user?.claims?.sub;
-  if (!userId) {
-    return res.redirect('/api/login');
-  }
-  
-  if (!isModerator(userId)) {
-    return res.status(403).send('Access denied');
-  }
-
   try {
     await pool.query(`
       UPDATE submissions 

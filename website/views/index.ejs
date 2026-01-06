@@ -241,6 +241,9 @@
         </div>
         <div class="header-auth">
           <% if (user) { %>
+            <% if (user.isAdmin || user.isModerator) { %>
+              <a href="/mod" class="auth-btn" style="background:#6b5d4d;">Mod Panel</a>
+            <% } %>
             <div class="user-info">
               <% if (user.profileImage) { %>
                 <img src="<%= user.profileImage %>" alt="" class="user-avatar">

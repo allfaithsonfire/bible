@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moderator Panel - All Faiths On Fire</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: #faf8f5;
+      color: #2c2416;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #f0e6d3;
+      padding: 1.25rem 2rem;
+      border-bottom: 3px solid #c9a227;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border: 1px solid #e8e0d5;
+    }
+    .stat-card h3 {
+      margin: 0 0 0.5rem 0;
+      color: #6b5d4d;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-card .number {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #2c2416;
+    }
+    .stat-card.pending .number { color: #d4a017; }
+    .stat-card.approved .number { color: #2e7d32; }
+    .stat-card.rejected .number { color: #c62828; }
+    .nav-links {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .nav-link {
+      display: inline-block;
+      background: #c9a227;
+      color: #1a1a2e;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .nav-link:hover {
+      background: #e0b830;
+      transform: translateY(-2px);
+    }
+    .nav-link.secondary {
+      background: #e8e0d5;
+      color: #3d3425;
+    }
+    .nav-link.secondary:hover {
+      background: #d4c9b8;
+    }
+    h2 {
+      color: #3d3425;
+      border-bottom: 2px solid #c9a227;
+      padding-bottom: 0.5rem;
+    }
+    .submissions-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .submissions-table th,
+    .submissions-table td {
+      padding: 1rem;
+      text-align: left;
+      border-bottom: 1px solid #e8e0d5;
+    }
+    .submissions-table th {
+      background: #f5f0e8;
+      font-weight: 600;
+      color: #3d3425;
+    }
+    .submissions-table tr:last-child td {
+      border-bottom: none;
+    }
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .status.pending { background: #fff3cd; color: #856404; }
+    .status.approved { background: #d4edda; color: #155724; }
+    .status.rejected { background: #f8d7da; color: #721c24; }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #6b5d4d;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Moderator Panel</h1>
+  </header>
+  
+  <div class="container">
+    <div class="nav-links">
+      <a href="/moderate" class="nav-link">Review Pending (<%= stats.pending %>)</a>
+      <a href="/" class="nav-link secondary">Back to Site</a>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card pending">
+        <h3>Pending</h3>
+        <div class="number"><%= stats.pending %></div>
+      </div>
+      <div class="stat-card approved">
+        <h3>Approved</h3>
+        <div class="number"><%= stats.approved %></div>
+      </div>
+      <div class="stat-card rejected">
+        <h3>Rejected</h3>
+        <div class="number"><%= stats.rejected %></div>
+      </div>
+    </div>
+    
+    <h2>Recent Submissions</h2>
+    
+    <% if (recentSubmissions.length === 0) { %>
+      <div class="empty-state">
+        <p>No submissions yet.</p>
+      </div>
+    <% } else { %>
+      <table class="submissions-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Book</th>
+            <th>Chapter</th>
+            <th>Submitted By</th>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% recentSubmissions.forEach(sub => { %>
+            <tr>
+              <td><%= sub.submission_type %></td>
+              <td><%= sub.book_title || '-' %></td>
+              <td><%= sub.chapter_title || '-' %></td>
+              <td><%= sub.first_name || sub.discord_username || 'Anonymous' %></td>
+              <td><%= new Date(sub.created_at).toLocaleDateString() %></td>
+              <td><span class="status <%= sub.status %>"><%= sub.status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</body>
+</html>
