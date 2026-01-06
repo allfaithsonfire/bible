@@ -311,7 +311,7 @@ app.use(async (req, res, next) => {
         };
       } else if (req.user.claims) {
         res.locals.user = {
-          id: req.user.claims.sub,
+          id: req.user.id,
           email: req.user.claims.email,
           firstName: req.user.claims.first_name,
           lastName: req.user.claims.last_name,
