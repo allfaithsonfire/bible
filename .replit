@@ -57,3 +57,6 @@ ignorePorts = false
 [userenv.shared]
 DISCORD_APP_ID = "1399412635878822010"
 DISCORD_PUBLIC_KEY = "3c9f1f4347b788fca44caef06c35ffdf61c91f245baf5c94c65fe527b67786ae"
+
+[userenv.production]
+NODE_ENV = "production"
