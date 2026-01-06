@@ -96,6 +96,9 @@ Production uses **Reserved VM** deployment (required for Discord bot's WebSocket
 - The website and bot run together in the same VM
 
 ## Recent Changes
+- January 2026: Added submission approval pipeline that publishes content to scripture tables
+- January 2026: Submissions now flow: pending → approved → published (inserted into books/chapters/verses)
+- January 2026: Added quote_tags and book_rules tables, chapter_number and position columns
 - January 2026: Multi-provider OAuth with identity linking (same email = same user)
 - January 2026: Added user_identities table to support Discord + Replit + future providers
 - January 2026: Added role-based access control (is_admin, is_moderator flags on users)
