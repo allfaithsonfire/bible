@@ -50,9 +50,14 @@ Members can submit scripture contributions via:
 All submissions go to moderation queue at `/moderate`
 
 ### Moderator Access
-By default, all logged-in users can moderate. To restrict:
-- Set `MODERATOR_IDS` environment variable with comma-separated user IDs
-- Example: `MODERATOR_IDS=user123,user456`
+Access to the mod panel (`/mod`) and moderation queue (`/moderate`) requires:
+- User must have `is_admin = true` OR `is_moderator = true` in the database
+
+To grant moderator access, update the user in the database:
+```sql
+UPDATE users SET is_moderator = true WHERE id = 'user-id';
+UPDATE users SET is_admin = true WHERE id = 'user-id';  -- For full admin access
+```
 
 ## Running the Website
 The website runs on port 5000:
@@ -91,6 +96,9 @@ Production uses **Reserved VM** deployment (required for Discord bot's WebSocket
 - The website and bot run together in the same VM
 
 ## Recent Changes
+- January 2026: Added role-based access control (is_admin, is_moderator flags on users)
+- January 2026: Added mod panel at /mod for admins and moderators
+- January 2026: Sessions now persisted in PostgreSQL database
 - December 2025: Added dual OAuth - Discord for production, Replit for development
 - December 2025: Submit form autocomplete for existing books/chapters
 - December 2025: Edit mode with dropdowns + book_id/chapter_id tracking
