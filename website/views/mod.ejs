@@ -31,7 +31,7 @@
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1.5rem;
       margin-bottom: 2rem;
     }
@@ -57,6 +57,7 @@
     }
     .stat-card.pending .number { color: #d4a017; }
     .stat-card.approved .number { color: #2e7d32; }
+    .stat-card.published .number { color: #1b5e20; }
     .stat-card.rejected .number { color: #c62828; }
     .nav-links {
       display: flex;
@@ -120,7 +121,9 @@
     }
     .status.pending { background: #fff3cd; color: #856404; }
     .status.approved { background: #d4edda; color: #155724; }
+    .status.published { background: #c3e6cb; color: #0d5524; }
     .status.rejected { background: #f8d7da; color: #721c24; }
+    .status.error { background: #f5c6cb; color: #721c24; }
     .empty-state {
       text-align: center;
       padding: 3rem;
@@ -147,6 +150,10 @@
       <div class="stat-card approved">
         <h3>Approved</h3>
         <div class="number"><%= stats.approved %></div>
+      </div>
+      <div class="stat-card published">
+        <h3>Published</h3>
+        <div class="number"><%= stats.published %></div>
       </div>
       <div class="stat-card rejected">
         <h3>Rejected</h3>

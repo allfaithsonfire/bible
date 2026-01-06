@@ -553,6 +553,7 @@ app.get('/mod', requireRole(['admin', 'moderator']), async (req, res) => {
   try {
     const pendingCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'pending'");
     const approvedCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'approved'");
+    const publishedCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'published'");
     const rejectedCount = await pool.query("SELECT COUNT(*) FROM submissions WHERE status = 'rejected'");
     const recentSubmissions = await pool.query(`
       SELECT s.*, u.first_name, u.email 
@@ -566,6 +567,7 @@ app.get('/mod', requireRole(['admin', 'moderator']), async (req, res) => {
       stats: {
         pending: parseInt(pendingCount.rows[0].count),
         approved: parseInt(approvedCount.rows[0].count),
+        published: parseInt(publishedCount.rows[0].count),
         rejected: parseInt(rejectedCount.rows[0].count)
       },
       recentSubmissions: recentSubmissions.rows
@@ -653,11 +655,12 @@ app.post('/moderate/:id/approve', requireRole(['admin', 'moderator']), async (re
         if (existingChapter.rows.length > 0) {
           finalChapterId = existingChapter.rows[0].id;
         } else {
-          const filename = chapter_title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+          const slugBase = chapter_title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'chapter';
+          const filename = slugBase + '_' + Date.now();
           const maxChapNum = await client.query('SELECT COALESCE(MAX(chapter_number), 0) + 1 as next_num FROM chapters WHERE book_id = $1', [finalBookId]);
           const newChapter = await client.query(
             'INSERT INTO chapters (book_id, title, filename, created_at, chapter_number) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            [finalBookId, chapter_title, filename + '_' + Date.now(), Math.floor(Date.now() / 1000), maxChapNum.rows[0].next_num]
+            [finalBookId, chapter_title, filename, Math.floor(Date.now() / 1000), maxChapNum.rows[0].next_num]
           );
           finalChapterId = newChapter.rows[0].id;
         }
@@ -707,7 +710,8 @@ app.post('/moderate/:id/approve', requireRole(['admin', 'moderator']), async (re
       
       // Create chapter
       const chapterTitle = chapter_title || 'Untitled Chapter';
-      const filename = chapterTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now();
+      const slugBase = chapterTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'chapter';
+      const filename = slugBase + '_' + Date.now();
       const maxChapNum = await client.query('SELECT COALESCE(MAX(chapter_number), 0) + 1 as next_num FROM chapters WHERE book_id = $1', [finalBookId]);
       
       const newChapter = await client.query(
@@ -718,23 +722,28 @@ app.post('/moderate/:id/approve', requireRole(['admin', 'moderator']), async (re
       
       // Parse content to extract verses (split by newlines or numbered patterns like "1." or "1:")
       const lines = content.split(/\n/).filter(line => line.trim());
-      let verseNum = 1;
+      let nextVerseNum = 1;
       
       for (const line of lines) {
         let verseText = line.trim();
+        let currentVerseNum;
+        
         // Try to extract verse number from patterns like "1." or "1:" or "1)"
         const numberedMatch = verseText.match(/^(\d+)[.:)\s]+(.+)$/);
         if (numberedMatch) {
-          verseNum = parseInt(numberedMatch[1], 10);
+          currentVerseNum = parseInt(numberedMatch[1], 10);
           verseText = numberedMatch[2].trim();
+          nextVerseNum = currentVerseNum + 1;
+        } else {
+          currentVerseNum = nextVerseNum;
+          nextVerseNum++;
         }
         
         if (verseText) {
           await client.query(
             'INSERT INTO verses (chapter_id, verse_number, text) VALUES ($1, $2, $3)',
-            [newChapterId, verseNum, verseText]
+            [newChapterId, currentVerseNum, verseText]
           );
-          verseNum++;
         }
       }
       
