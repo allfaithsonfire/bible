@@ -96,6 +96,8 @@ Production uses **Reserved VM** deployment (required for Discord bot's WebSocket
 - The website and bot run together in the same VM
 
 ## Recent Changes
+- January 2026: Multi-provider OAuth with identity linking (same email = same user)
+- January 2026: Added user_identities table to support Discord + Replit + future providers
 - January 2026: Added role-based access control (is_admin, is_moderator flags on users)
 - January 2026: Added mod panel at /mod for admins and moderators
 - January 2026: Sessions now persisted in PostgreSQL database
